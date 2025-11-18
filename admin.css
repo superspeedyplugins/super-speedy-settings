@@ -10,6 +10,29 @@ table.superspeedy-plugins thead th { text-align: left; padding:4px 5px; backgrou
 table.superspeedy-plugins tbody td { padding: 4px 5px; } 
 table.superspeedy-plugins tr td {border-top: 1px solid #ccc; }
 
+/* Plugin name styling */
+.plugin-name-bold {
+    font-weight: bold;
+}
+
+.plugin-page-link {
+    font-size: 11px;
+    color: #666;
+    text-decoration: none;
+    display: block;
+    margin-top: 3px;
+}
+
+.plugin-page-link:hover {
+    text-decoration: underline;
+    color: #0073aa;
+}
+
+/* Hide admin notices in service panels */
+.superspeedy-service-panel .notice {
+    display: none !important;
+}
+
 /* Flexbox layout for service panels */
 .superspeedy-services {
     display: flex;

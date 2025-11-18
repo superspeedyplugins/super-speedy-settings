@@ -223,7 +223,7 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
                         echo '<tr class="activated">';
                     }
                 }
-                echo '<td>' . $ssp_license['name'] . '</td>';
+                echo '<td><span class="plugin-name-bold">' . $ssp_license['name'] . '</span><br><a href="https://www.superspeedyplugins.com/product/' . $slug . '/" target="_blank" class="plugin-page-link">View ' . $ssp_license['name'] . ' plugin page</a></td>';
                 
     
                 if ($license['error'] == 'not installed') {
