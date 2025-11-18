@@ -6,8 +6,10 @@ form > div.error, form > div.notice {
     display: none !important;
 }
 table.superspeedy-plugins { background-color:white; border:1px solid #ccc; border-radius:4px; border-collapse: collapse; width:100%;}
-table.superspeedy-plugins thead th { text-align: left; padding:4px 5px; background-color:#444; color: #f1f1f1; } 
-table.superspeedy-plugins tbody td { padding: 4px 5px; } 
+table.superspeedy-plugins thead th { text-align: left; padding:4px 5px; background-color:#444; color: #f1f1f1; }
+table.superspeedy-plugins thead th:first-child { width: 60px; }
+table.superspeedy-plugins tbody td { padding: 4px 5px; }
+table.superspeedy-plugins tbody td:first-child { width: 60px; text-align: center; }
 table.superspeedy-plugins tr td {border-top: 1px solid #ccc; }
 
 /* Plugin name styling */

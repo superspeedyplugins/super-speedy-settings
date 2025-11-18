@@ -48,8 +48,7 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
             settings_errors( 'superspeedy_messages' );
             ?>
             <div class="wrap">
-                <div><div><div></div></div></div>
-                <div class="super-speedy-plugins-admin-header"><img src="<?php echo plugins_url('super-speedy-plugins.svg', __FILE__); ?>"></div>
+                <div class="super-speedy-plugins-admin-header"><a href="https://www.superspeedyplugins.com/" target="_blank"><img src="<?php echo plugins_url('super-speedy-plugins.svg', __FILE__); ?>"></a></div>
                 
                 <!-- Service panels flexbox -->
                 <div class="superspeedy-services">
@@ -209,7 +208,7 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
     
     
             echo '<table class="superspeedy-plugins">';
-            echo '<thead><tr><th>Plugin Name</th><th>Installation Status</th><th>License Status</th><th>Changes</th><th>Docs</th><th>Live Support</th></tr></thead>';
+            echo '<thead><tr><th></th><th>Plugin Name</th><th>Installation Status</th><th>License Status</th><th>Changes</th><th>Docs</th><th>Live Support</th></tr></thead>';
             echo '<tbody>';
             
             foreach($superspeedy_licenses as $slug => $ssp_license) {
@@ -223,6 +222,7 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
                         echo '<tr class="activated">';
                     }
                 }
+                echo '<td><a href="https://www.superspeedyplugins.com/product/' . $slug . '/" target="_blank"><img src="' . plugins_url('images/' . $slug . '.png', __FILE__) . '" alt="' . $ssp_license['name'] . '" style="height: 50px; width: auto;"></a></td>';
                 echo '<td><span class="plugin-name-bold">' . $ssp_license['name'] . '</span><br><a href="https://www.superspeedyplugins.com/product/' . $slug . '/" target="_blank" class="plugin-page-link">View ' . $ssp_license['name'] . ' plugin page</a></td>';
                 
     
