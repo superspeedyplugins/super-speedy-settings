@@ -5,7 +5,7 @@ namespace SuperSpeedy\PluginUpdateChecker\v5p4;
 if ( !class_exists(Autoloader::class, false) ):
 
 	class Autoloader {
-		const DEFAULT_NS_PREFIX = 'YahnisElsts\\PluginUpdateChecker\\';
+		const DEFAULT_NS_PREFIX = 'SuperSpeedy\\PluginUpdateChecker\\';
 
 		private $prefix;
 		private $rootDir;
