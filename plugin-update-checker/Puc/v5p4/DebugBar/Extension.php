@@ -1,8 +1,8 @@
 <?php
-namespace YahnisElsts\PluginUpdateChecker\v5p4\DebugBar;
+namespace SuperSpeedy\PluginUpdateChecker\v5p4\DebugBar;
 
-use YahnisElsts\PluginUpdateChecker\v5p4\PucFactory;
-use YahnisElsts\PluginUpdateChecker\v5p4\UpdateChecker;
+use SuperSpeedy\PluginUpdateChecker\v5p4\PucFactory;
+use SuperSpeedy\PluginUpdateChecker\v5p4\UpdateChecker;
 
 if ( !class_exists(Extension::class, false) ):
 

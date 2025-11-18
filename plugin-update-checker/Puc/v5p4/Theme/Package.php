@@ -1,7 +1,7 @@
 <?php
-namespace YahnisElsts\PluginUpdateChecker\v5p4\Theme;
+namespace SuperSpeedy\PluginUpdateChecker\v5p4\Theme;
 
-use YahnisElsts\PluginUpdateChecker\v5p4\InstalledPackage;
+use SuperSpeedy\PluginUpdateChecker\v5p4\InstalledPackage;
 
 if ( !class_exists(Package::class, false) ):
 

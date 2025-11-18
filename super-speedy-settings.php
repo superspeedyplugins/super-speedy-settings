@@ -2,7 +2,7 @@
 
 require_once 'abstract-class-super-speedy-settings.php';
 require 'plugin-update-checker/plugin-update-checker.php';
-use YahnisElsts\PluginUpdateChecker\v5\PucFactory;
+use SuperSpeedy\PluginUpdateChecker\v5\PucFactory;
 if (!class_exists('SuperSpeedySettings_1_0')) {
     class SuperSpeedySettings_1_0 extends SuperSpeedySettings {
         protected static $version = 1.0;

@@ -1,9 +1,9 @@
 <?php
 
-namespace YahnisElsts\PluginUpdateChecker\v5p4\Vcs;
+namespace SuperSpeedy\PluginUpdateChecker\v5p4\Vcs;
 
-use YahnisElsts\PluginUpdateChecker\v5p4\Theme;
-use YahnisElsts\PluginUpdateChecker\v5p4\Utils;
+use SuperSpeedy\PluginUpdateChecker\v5p4\Theme;
+use SuperSpeedy\PluginUpdateChecker\v5p4\Utils;
 
 if ( !class_exists(ThemeUpdateChecker::class, false) ):
 

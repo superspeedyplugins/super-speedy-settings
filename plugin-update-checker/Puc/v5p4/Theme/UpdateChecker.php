@@ -1,11 +1,11 @@
 <?php
 
-namespace YahnisElsts\PluginUpdateChecker\v5p4\Theme;
+namespace SuperSpeedy\PluginUpdateChecker\v5p4\Theme;
 
-use YahnisElsts\PluginUpdateChecker\v5p4\UpdateChecker as BaseUpdateChecker;
-use YahnisElsts\PluginUpdateChecker\v5p4\InstalledPackage;
-use YahnisElsts\PluginUpdateChecker\v5p4\Scheduler;
-use YahnisElsts\PluginUpdateChecker\v5p4\DebugBar;
+use SuperSpeedy\PluginUpdateChecker\v5p4\UpdateChecker as BaseUpdateChecker;
+use SuperSpeedy\PluginUpdateChecker\v5p4\InstalledPackage;
+use SuperSpeedy\PluginUpdateChecker\v5p4\Scheduler;
+use SuperSpeedy\PluginUpdateChecker\v5p4\DebugBar;
 
 if ( !class_exists(UpdateChecker::class, false) ):
 

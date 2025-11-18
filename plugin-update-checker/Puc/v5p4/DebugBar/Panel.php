@@ -1,7 +1,7 @@
 <?php
-namespace YahnisElsts\PluginUpdateChecker\v5p4\DebugBar;
+namespace SuperSpeedy\PluginUpdateChecker\v5p4\DebugBar;
 
-use YahnisElsts\PluginUpdateChecker\v5p4\UpdateChecker;
+use SuperSpeedy\PluginUpdateChecker\v5p4\UpdateChecker;
 
 if ( !class_exists(Panel::class, false) && class_exists('Debug_Bar_Panel', false) ):
 

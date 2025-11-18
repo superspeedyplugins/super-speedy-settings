@@ -1,10 +1,10 @@
 <?php
 
-namespace YahnisElsts\PluginUpdateChecker\v5p4;
+namespace SuperSpeedy\PluginUpdateChecker\v5p4;
 
-use YahnisElsts\PluginUpdateChecker\v5p4\Plugin;
-use YahnisElsts\PluginUpdateChecker\v5p4\Theme;
-use YahnisElsts\PluginUpdateChecker\v5p4\Vcs;
+use SuperSpeedy\PluginUpdateChecker\v5p4\Plugin;
+use SuperSpeedy\PluginUpdateChecker\v5p4\Theme;
+use SuperSpeedy\PluginUpdateChecker\v5p4\Vcs;
 
 if ( !class_exists(PucFactory::class, false) ):
 

@@ -1,6 +1,6 @@
 <?php
 
-namespace YahnisElsts\PluginUpdateChecker\v5p4;
+namespace SuperSpeedy\PluginUpdateChecker\v5p4;
 
 use WP_CLI;
 

@@ -1,7 +1,7 @@
 <?php
-namespace YahnisElsts\PluginUpdateChecker\v5p4\Plugin;
+namespace SuperSpeedy\PluginUpdateChecker\v5p4\Plugin;
 
-use YahnisElsts\PluginUpdateChecker\v5p4\Metadata;
+use SuperSpeedy\PluginUpdateChecker\v5p4\Metadata;
 
 if ( !class_exists(PluginInfo::class, false) ):
 

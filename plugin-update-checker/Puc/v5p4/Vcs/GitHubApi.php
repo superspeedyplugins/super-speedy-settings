@@ -1,6 +1,6 @@
 <?php
 
-namespace YahnisElsts\PluginUpdateChecker\v5p4\Vcs;
+namespace SuperSpeedy\PluginUpdateChecker\v5p4\Vcs;
 
 use Parsedown;
 

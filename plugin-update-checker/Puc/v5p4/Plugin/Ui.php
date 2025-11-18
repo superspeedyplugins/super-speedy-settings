@@ -1,5 +1,5 @@
 <?php
-namespace YahnisElsts\PluginUpdateChecker\v5p4\Plugin;
+namespace SuperSpeedy\PluginUpdateChecker\v5p4\Plugin;
 
 if ( !class_exists(Ui::class, false) ):
 	/**
