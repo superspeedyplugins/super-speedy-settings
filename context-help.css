@@ -1,0 +1,68 @@
+
+.ssp_help_tooltip_container {
+    display: none;
+    position: absolute;
+    color: white;
+    font-weight: normal;
+    border-radius: 4px;
+    font-size: 100%;
+    width:385px;
+    right:0px;
+    margin-top:5px;
+    background:url('super-speedy-plugins-white.svg');
+    background-repeat:no-repeat;
+    background-position: right 10px bottom 10px;
+    background-color: #8035be;
+    text-align:left;
+    padding-left:10px;
+    padding-right:10px;
+    padding-top:10px;
+    padding-bottom:20px;
+    min-height:90px;
+    background-size: auto 20px;
+
+
+}
+.ssp_help_tooltip_container a.ssp_help {
+    color: white;
+    position: absolute;
+    bottom: 12px;
+    font-weight:normal;
+    left:10px;
+}
+.ssp_help_tooltip.show_tooltip .ssp_help_tooltip_container {
+    display:block;
+}
+.ssp_help_tooltip .dashicons {
+    color:#8035be;
+}
+.ssp_help_tooltip.white .dashicons {
+    color:#f1f1f1;
+}
+.ssp_help_tooltip_content {
+    position:static;
+    z-index:99999999;
+}
+.ssp_arrow {
+    position: absolute;
+    background: #8035be;
+    width: 8px;
+    height: 8px;
+    transform: rotate(45deg);
+    top:-4px;
+    right:6px;
+}
+.ssp_help_tooltip {
+    padding: 0px;
+    margin: 0px;
+    border: none;
+    background: transparent;
+    margin-left:2px;
+    position:relative;
+}
+.superspeedy-plugins tr.not-installed {
+    background-color:#ccc;
+}
+.superspeedy-plugins tr.deactivated {
+    background-color:#ddd;
+}
