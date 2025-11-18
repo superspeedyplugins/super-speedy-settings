@@ -48,12 +48,57 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
             settings_errors( 'superspeedy_messages' );
             ?>
             <div class="wrap">
-                <div style="padding:10px;"><img src="<?php echo plugins_url('super-speedy-plugins.svg', __FILE__); ?>"></div>
+                <div><div><div></div></div></div>
+                <div class="super-speedy-plugins-admin-header"><img src="<?php echo plugins_url('super-speedy-plugins.svg', __FILE__); ?>"></div>
+                
+                <!-- Service panels flexbox -->
+                <div class="superspeedy-services">
+                    <div class="superspeedy-service-panel">
+                        <a href="https://www.superspeedyplugins.com/kb/" target="_blank">
+                            <img src="<?php echo plugins_url('images/knowledge-base.png', __FILE__); ?>" alt="Knowledge Base">
+                            <h2>Knowledge Base</h2>
+                            <p>Learn how to use our plugins</p>
+                        </a>
+                    </div>
+                    
+                    <div class="superspeedy-service-panel">
+                        <a href="https://www.superspeedyplugins.com/super-speedy-discord/" target="_blank">
+                            <img src="<?php echo plugins_url('images/chat-live-with-developers.png', __FILE__); ?>" alt="Chat Live with Developers">
+                            <h2>Chat Live with Developers</h2>
+                            <p>Get instant answers from our developers through Discord</p>
+                        </a>
+                    </div>
+                    
+                    <div class="superspeedy-service-panel">
+                        <a href="https://www.superspeedyplugins.com/latest/" target="_blank">
+                            <img src="<?php echo plugins_url('images/performance-articles.png', __FILE__); ?>" alt="Performance Articles">
+                            <h2>Performance Articles</h2>
+                            <p>Read the latest performance articles by Super Speedy Plugins</p>
+                        </a>
+                    </div>
+                    
+                    <div class="superspeedy-service-panel">
+                        <a href="https://www.superspeedyplugins.com/my-account/" target="_blank">
+                            <img src="<?php echo plugins_url('images/upgrades.png', __FILE__); ?>" alt="View Upgrade Options">
+                            <h2>View Upgrade Options</h2>
+                            <p>Pay-the-difference inside 60 days of purchase</p>
+                        </a>
+                    </div>
+                    
+                    <div class="superspeedy-service-panel">
+                        <a href="https://www.superspeedyplugins.com/my-account/" target="_blank">
+                            <img src="<?php echo plugins_url('images/renewals.png', __FILE__); ?>" alt="View Renewal Options">
+                            <h2>View Renewal Options</h2>
+                            <p>Get 25% off all renewals</p>
+                        </a>
+                    </div>
+                </div>
+                
                 <form action="options.php" method="post">
                     <?php
                     settings_fields( 'superspeedy' );
-                    do_settings_sections( 'superspeedy' );
                     $this->display_license_table();
+                    do_settings_sections( 'superspeedy' );
 
                     submit_button( 'Save Settings' );
                     ?>
@@ -130,9 +175,8 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
         
             // Register a new field in the "superspeedy_section_license" section, inside the "wpintense" page.
             add_settings_field(
-                'superspeedy_field_licensekey', // As of WP 4.6 this value is used only internally.
-                                        // Use $args' label_for to populate the id inside the callback.
-                    __( 'License Key', 'superspeedy' ),
+                'superspeedy_field_licensekey', 
+                __( 'License Key', 'superspeedy' ),
                 array($this, 'field_licensekey_cb'),
                 'superspeedy',
                 'superspeedy_section_license',
@@ -146,12 +190,6 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
         public function settings_intro() {
             ?>
             <p>Enter your license key below to enable plugin updates. </p>
-            <ul style="list-style:disc; margin-left:20px;"><li>
-                Your license key enables updates for your plugins. You can find your license key in your <a href="https://www.superspeedyplugins.com/my-account/?utm_source=license_checker&utm_content=plugin"> account page</a>.
-                </li>
-            <li>You can renew your license and lock in 25%-off whatever you paid for your first year. <a href="https://www.superspeedyplugins.com/my-account/renewals/?utm_source=license_checker&utm_content=plugin">Renew your license here</a>.</li>
-            <li>You can also upgrade your license to allow more websites and only pay the difference. <a href="https://www.superspeedyplugins.com/my-account/upgrade-account/?utm_source=license_checker&utm_content=plugin">Upgrade your license here</a>.</li>
-            </ul>
             <p>Please remember to renew your license to continue to support our small team so we can keep solving these WordPress performance issues.
             <?php 
         }
