@@ -216,21 +216,21 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
                 if ($license['error'] == 'not installed') {
                     echo '<tr class="not-installed">';
                 } else {
-                    if (!function_exists($ssp_license['function'])) {
+                    if (empty($ssp_license['function']) || !function_exists($ssp_license['function'])) {
                         echo '<tr class="deactivated">';
                     } else {
                         echo '<tr class="activated">';
                     }
                 }
-                echo '<td><a href="https://www.superspeedyplugins.com/product/' . $slug . '/" target="_blank"><img src="' . plugins_url('images/' . $slug . '.png', __FILE__) . '" alt="' . $ssp_license['name'] . '" style="height: 50px; width: auto;"></a></td>';
-                echo '<td><span class="plugin-name-bold">' . $ssp_license['name'] . '</span><br><a href="https://www.superspeedyplugins.com/product/' . $slug . '/" target="_blank" class="plugin-page-link">View ' . $ssp_license['name'] . ' plugin page</a></td>';
+                echo '<td><a href="https://www.superspeedyplugins.com/product/' . $slug . '/" target="_blank"><img src="' . plugins_url('images/' . $slug . '.png', __FILE__) . '" alt="' . ($ssp_license['name'] ?? '') . '" style="height: 50px; width: auto;"></a></td>';
+                echo '<td><span class="plugin-name-bold">' . ($ssp_license['name'] ?? '') . '</span><br><a href="https://www.superspeedyplugins.com/product/' . $slug . '/" target="_blank" class="plugin-page-link">View ' . $ssp_license['name'] . ' plugin page</a></td>';
                 
     
                 if ($license['error'] == 'not installed') {
                     echo '<td>Not installed</td>';
                     echo '<td>Not checked</td>';
                 } else {
-                    $active = function_exists($ssp_license['function']) ? "Activated" : "Deactivated";
+                    $active = (!empty($ssp_license['function']) && function_exists($ssp_license['function'])) ? "Activated" : "Deactivated";
                     echo "<td>Installed / $active</td>";
                     echo '<td>' . $license['error'] . '</td>';
                 }
@@ -251,7 +251,7 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
                     echo '<td>' . $changes["count"] . ' changes in the last 90 days<br /><a href="https://www.superspeedyplugins.com/support/changelogs/' . $slug . '/?utm_source=' . urlencode($utm_source) . '&utm_content=plugin" target="_blank">View Change log</a></td>';
                 }
                 echo '<td><a href="https://www.superspeedyplugins.com/kb/' . $slug . '/?utm_source=' . urlencode($utm_source) . '&utm_content=plugin" target="_blank">Knowledge Base</a></td>';
-                echo '<td><a href="' . $ssp_license['discord'] . '" target="_blank">Discord Channel</a></td>';
+                echo '<td>' . (!empty($ssp_license['discord']) ? '<a href="' . $ssp_license['discord'] . '" target="_blank">Discord Channel</a>' : 'N/A') . '</td>';
             
                 echo '</tr>';
             }
@@ -329,7 +329,6 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
                 "Cache-Control: no-cache"
                 ));
                 $keycheckdata = curl_exec($curl);
-                curl_close($curl);
     
                 //echo "<pre>" . print_r($keycheckdata, true) . "</pre>";
     
