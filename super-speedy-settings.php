@@ -223,7 +223,7 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
                     }
                 }
                 echo '<td><a href="https://www.superspeedyplugins.com/product/' . $slug . '/" target="_blank"><img src="' . plugins_url('images/' . $slug . '.png', __FILE__) . '" alt="' . ($ssp_license['name'] ?? '') . '" style="height: 50px; width: auto;"></a></td>';
-                echo '<td><span class="plugin-name-bold">' . ($ssp_license['name'] ?? '') . '</span><br><a href="https://www.superspeedyplugins.com/product/' . $slug . '/" target="_blank" class="plugin-page-link">View ' . $ssp_license['name'] . ' plugin page</a></td>';
+                echo '<td><span class="plugin-name-bold">' . ($ssp_license['name'] ?? '') . '</span><br><a href="https://www.superspeedyplugins.com/product/' . $slug . '/" target="_blank" class="plugin-page-link">View ' . ($ssp_license['name'] ?? '') . ' plugin page</a></td>';
                 
     
                 if ($license['error'] == 'not installed') {

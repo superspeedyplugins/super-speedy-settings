@@ -12,6 +12,8 @@ if (!class_exists('SuperSpeedySettings')) {
             'auto-infinite-scroll' => array('name' => 'Auto Infinite Scroll', 'function' => 'ais_active', 'discord' => 'https://discord.gg/eJFa36gfXG'),
             'external-images' => array('name' => 'External Images', 'function' => 'external_images_scripts', 'discord' => 'https://discord.gg/m3jN2pkeFT'),
             'super-speedy-filters' => array('name' => 'Super Speedy Filters', 'function' => 'fww_update_db_check', 'discord' => 'https://discord.gg/wFmJaNCeyY'),
+            'super-speedy-sitemaps' => array('name' => 'Super Speedy Sitemaps', 'function' => 'sssm_active', 'discord' => 'https://discord.com/channels/837258064704438282/1209821217624952895'),
+            'super-speedy-ajax-prices' => array('name' => 'Super Speedy Ajax Prices', 'function' => 'wc_ajax_pricing_init', 'discord' => 'https://discord.com/channels/837258064704438282/1476527369329049661'),
         );
 
         protected static function getVersion() {
