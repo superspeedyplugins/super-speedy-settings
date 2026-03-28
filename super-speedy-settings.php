@@ -370,8 +370,8 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
             //this function is DEFINITELY called to check for updates but MAYBE not to get the download link - so this should always work
             if (!isset($update->download_url)) return $update;
             $e = new \Exception;
-            if (strpos($e->getTraceAsString(), 'wp_update_plugins') === false) return $update;
-            if (strpos($e->getTraceAsString(), 'wp_ajax_update_plugin') === false) return $update;
+            $trace = $e->getTraceAsString();
+            if (strpos($trace, 'wp_update_plugins') === false && strpos($trace, 'wp_ajax_update_plugin') === false) return $update;
     //        if (strpos($e->getTraceAsString(), 'Plugin_Upgrader->bulk_upgrade') === false) return $update;
             
             $options = get_option( 'superspeedy_options' );
