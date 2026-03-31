@@ -575,22 +575,17 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
         public function handle_wp_error_added($code, $message, $data, $object) {
 
             // check if body key exists and check if it's json format
-    
+
             if (is_array($data) && isset($data['body']) && is_string($data['body'])) {
                 $json = json_decode($data['body']);
-                if ($json !== null) {
-                    // if $json -> code exists && $json -> message exists, $json -> data exists
-                    $code = isset($json->code) ? $json->code : $code;
-                    $message = isset($json->message) ? $json->message : $message;
-                    if ($code && $message) {
-                        add_settings_error('superspeedy_messages', 'superspeedy_message', $message, 'error');
-                        echo '';
-                        echo "Error Code: " . esc_html($code) . "\n";
-                        echo "Error Message: " . esc_html($message) . "\n";
-                        echo "\n\n";
-                        echo '';
-    
-                    }
+                if ($json !== null && isset($json->message)) {
+                    $clean_message = $json->message;
+                    $settings_url = admin_url('admin.php?page=superspeedy');
+                    $clean_message .= ' <a href="' . esc_url($settings_url) . '">Go to Super Speedy Settings to enter your license key</a>.';
+
+                    // Replace the error message in the WP_Error object with the clean version
+                    $object->remove($code);
+                    $object->add($code, $clean_message, $data);
                 }
             }
         }
