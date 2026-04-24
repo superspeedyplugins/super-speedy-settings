@@ -573,21 +573,40 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
             return $response;
         }
         public function handle_wp_error_added($code, $message, $data, $object) {
-
-            // check if body key exists and check if it's json format
-
-            if (is_array($data) && isset($data['body']) && is_string($data['body'])) {
-                $json = json_decode($data['body']);
-                if ($json !== null && isset($json->message)) {
-                    $clean_message = $json->message;
-                    $settings_url = admin_url('admin.php?page=superspeedy');
-                    $clean_message .= ' <a href="' . esc_url($settings_url) . '">Go to Super Speedy Settings to enter your license key</a>.';
-
-                    // Replace the error message in the WP_Error object with the clean version
-                    $object->remove($code);
-                    $object->add($code, $clean_message, $data);
-                }
+            // Only act on array data carrying a JSON body.
+            if (!is_array($data) || !isset($data['body']) || !is_string($data['body'])) {
+                return;
             }
+
+            // Idempotency: if this error already carries our settings-page link,
+            // don't re-enhance it (prevents appending the link twice).
+            if (is_string($message) && strpos($message, 'page=superspeedy') !== false) {
+                return;
+            }
+
+            // Scope: when the request URL is available, only enhance errors from
+            // our own license/update server. Other plugins' HTTP errors (e.g. GitHub
+            // API rate limits) should be left untouched.
+            if (isset($data['url']) && is_string($data['url'])
+                && strpos($data['url'], 'superspeedyplugins.com') === false) {
+                return;
+            }
+
+            $json = json_decode($data['body']);
+            if ($json === null || !isset($json->message)) {
+                return;
+            }
+
+            $clean_message = $json->message;
+            $settings_url = admin_url('admin.php?page=superspeedy');
+            $clean_message .= ' <a href="' . esc_url($settings_url) . '">Go to Super Speedy Settings to enter your license key</a>.';
+
+            // WP_Error::add() re-fires wp_error_added, so unhook before mutating
+            // to avoid infinite recursion, then rehook afterwards.
+            remove_action('wp_error_added', array($this, 'handle_wp_error_added'), 10);
+            $object->remove($code);
+            $object->add($code, $clean_message, $data);
+            add_action('wp_error_added', array($this, 'handle_wp_error_added'), 10, 4);
         }
         public function enqueue_admin_script( $hook ) {
             wp_enqueue_script('super_speedy_updates', plugin_dir_url(__FILE__) . 'super-speedy-updates.js', array('jquery'), time(), true);
