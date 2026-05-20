@@ -133,17 +133,28 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
             if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'superspeedy_recheck_license')) {
                 wp_send_json_error('Invalid nonce');
             }
-        
+
             // Get the current license key from the AJAX request
             $license_key = isset($_POST['license_key']) ? sanitize_text_field($_POST['license_key']) : '';
-            
+
             $options = get_option('superspeedy_options', array());
             $options['superspeedy_field_licensekey'] = $license_key;
             update_option('superspeedy_options', $options);
-        
+
             // Delete all license transients
             $this->delete_license_cache();
-        
+
+            // Re-fetch each installed plugin's licence status with force=1 so
+            // the auth-server also bypasses its 1-hour MySQL cache. Repopulates
+            // the transients we just deleted so the page reload reads fresh
+            // results without a second round of HTTP calls.
+            if (!empty($license_key)) {
+                $superspeedy_licenses = $this->getLicenses();
+                foreach ($superspeedy_licenses as $slug => $info) {
+                    $this->check_license($slug, true);
+                }
+            }
+
             wp_send_json_success();
         }
         public function settings_validate_and_save( $input ) {
@@ -197,16 +208,27 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
             $site_url = get_site_url();
             $site_url = str_replace('localhost', 'lh', $site_url); // localhost gets banned by GridPane
             $utm_source = parse_url($site_url, PHP_URL_HOST);
-    
+
             $action = 'puc_check_for_updates';
-    
+
             // Get the nonce
             $nonce = wp_create_nonce($action);
-    
+
             // Construct the URL
             $update_plugin_url = admin_url('plugins.php') . "?puc_check_for_updates=1&_wpnonce=" . $nonce . "&puc_slug=";
-    
-    
+
+            // Top-of-table "Recheck Licenses" button — gives users a clear
+            // affordance after a renewal/upgrade without scrolling down to the
+            // licence-key field. Disabled until a key is entered/saved further
+            // down; JS keeps the disabled state in sync as the user types.
+            $options    = get_option('superspeedy_options');
+            $saved_key  = is_array($options) && !empty($options['superspeedy_field_licensekey']) ? $options['superspeedy_field_licensekey'] : '';
+            $btn_disabled = $saved_key === '' ? ' disabled' : '';
+            echo '<p class="superspeedy-recheck-row">';
+            echo '<button type="button" id="recheck-licenses-top" class="button button-primary"' . $btn_disabled . '>Recheck Licenses</button>';
+            echo ' <span class="description recheck-licenses-hint"' . ($saved_key === '' ? '' : ' style="display:none"') . '>Enter your licence key below and save settings to enable.</span>';
+            echo '</p>';
+
             echo '<table class="superspeedy-plugins">';
             echo '<thead><tr><th></th><th>Plugin Name</th><th>Installation Status</th><th>License Status</th><th>Changes</th><th>Docs</th><th>Live Support</th></tr></thead>';
             echo '<tbody>';
@@ -281,9 +303,9 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
     
             <?php
         }
-        function check_license($slug) {
+        function check_license($slug, $force = false) {
             $options = get_option('superspeedy_options');
-    
+
             if (!$options) {
                 $options = get_option('wpintense_options');
                 if ($options) {
@@ -291,7 +313,7 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
                     update_option('superspeedy_options', $options);
                 }
             }
-    
+
             $installed = false;
             if (is_dir(WP_PLUGIN_DIR . '/' . $slug)) {
                 $installed = true;
@@ -302,9 +324,11 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
             if (!isset($options['superspeedy_field_licensekey'])) {
                 return array('error' => 'invalid', 'message' =>'Enter a valid license key to enable updates for Super Speedy plugins.');
             }
-            //todo: add back in once checks properly tested
-            if (get_transient('superspeedy_l_' . $slug)) {
-                return get_transient('superspeedy_l_' . $slug);
+            if (!$force) {
+                $cached = get_transient('superspeedy_l_' . $slug);
+                if ($cached) {
+                    return $cached;
+                }
             }
             $homeurl = get_home_url();
             $parsedurl = parse_url($homeurl);
@@ -312,6 +336,10 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
                 $encoded_licensekey = urlencode($options['superspeedy_field_licensekey']);
 
                 $keycheckurl = 'https://www.superspeedyplugins.com/wp-json/wpiapi/check_product_key/' . $encoded_licensekey . '/' . $slug . '/' . $parsedurl['host'] . '/';
+                if ($force) {
+                    // Tell auth-server to bypass its own 1-hour MySQL cache.
+                    $keycheckurl .= '?force=1';
+                }
 //                if ($homeurl == "https://localhost") {
 //                    $keycheckurl = 'https://localhost/wp-json/wpiapi/check_product_key/' . $encoded_licensekey . '/' . $slug . '/' . $parsedurl['host'] . '/';
 //                }
