@@ -74,17 +74,17 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
                         </a>
                     </div>
                     <div class="superspeedy-service-panel">
-                        <a href="https://www.superspeedyplugins.com/my-account/" target="_blank">
+                        <a href="https://www.superspeedyplugins.com/kb/super-speedy-basics/upgrade-and-renewal-discounts/" target="_blank">
                             <i class="at-arrow-up-from-square-bold" aria-hidden="true"></i>
                             <h2>Upgrade Options</h2>
-                            <p>Pay the difference within 60 days</p>
+                            <p>Upgrade and pay the difference</p>
                         </a>
                     </div>
                     <div class="superspeedy-service-panel">
-                        <a href="https://www.superspeedyplugins.com/my-account/" target="_blank">
+                        <a href="https://www.superspeedyplugins.com/kb/super-speedy-basics/upgrade-and-renewal-discounts/" target="_blank">
                             <i class="at-arrows-rotating-right-bold" aria-hidden="true"></i>
                             <h2>Renewal Options</h2>
-                            <p>Get 25% off all renewals</p>
+                            <p>Get 30% off all renewals</p>
                         </a>
                     </div>
                 </div>
