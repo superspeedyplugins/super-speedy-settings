@@ -129,9 +129,16 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
     
         }
         public function handle_recheck_license() {
+            // Only administrators may overwrite the licence key or trigger the
+            // outbound licence calls this handler performs.
+            if (!current_user_can('manage_options')) {
+                wp_send_json_error('forbidden');
+                return;
+            }
             // Verify nonce
             if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'superspeedy_recheck_license')) {
                 wp_send_json_error('Invalid nonce');
+                return;
             }
 
             // Get the current license key from the AJAX request
@@ -244,8 +251,8 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
                         echo '<tr class="activated">';
                     }
                 }
-                echo '<td><a href="https://www.superspeedyplugins.com/product/' . $slug . '/" target="_blank"><img src="' . plugins_url('images/' . $slug . '.png', __FILE__) . '" alt="' . ($ssp_license['name'] ?? '') . '" style="height: 50px; width: auto;"></a></td>';
-                echo '<td><span class="plugin-name-bold">' . ($ssp_license['name'] ?? '') . '</span><br><a href="https://www.superspeedyplugins.com/product/' . $slug . '/" target="_blank" class="plugin-page-link">View ' . ($ssp_license['name'] ?? '') . ' plugin page</a></td>';
+                echo '<td><a href="' . esc_url('https://www.superspeedyplugins.com/product/' . $slug . '/') . '" target="_blank"><img src="' . esc_url(plugins_url('images/' . $slug . '.png', __FILE__)) . '" alt="' . esc_attr($ssp_license['name'] ?? '') . '" style="height: 50px; width: auto;"></a></td>';
+                echo '<td><span class="plugin-name-bold">' . esc_html($ssp_license['name'] ?? '') . '</span><br><a href="' . esc_url('https://www.superspeedyplugins.com/product/' . $slug . '/') . '" target="_blank" class="plugin-page-link">View ' . esc_html($ssp_license['name'] ?? '') . ' plugin page</a></td>';
                 
     
                 if ($license['error'] == 'not installed') {
@@ -254,7 +261,7 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
                 } else {
                     $active = (!empty($ssp_license['function']) && function_exists($ssp_license['function'])) ? "Activated" : "Deactivated";
                     echo "<td>Installed / $active</td>";
-                    echo '<td>' . $license['error'] . '</td>';
+                    echo '<td>' . esc_html($license['error']) . '</td>';
                 }
             
                 if (isset($ssp_license['version'])) {
@@ -262,18 +269,18 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
                     if (!$changes) {
                         echo '<td>Unable to check for updates - please check your server allows remote URL requests</td>';
                     } else {
-                        echo '<td>' . $changes["count"] . ' changes since your last update<br /><a href="https://www.superspeedyplugins.com/support/changelogs/' . $slug . '/?utm_source=' . urlencode($utm_source) . '&utm_content=plugin" target="_blank">View Change log</a>';
+                        echo '<td>' . esc_html($changes["count"]) . ' changes since your last update<br /><a href="' . esc_url('https://www.superspeedyplugins.com/support/changelogs/' . $slug . '/?utm_source=' . urlencode($utm_source) . '&utm_content=plugin') . '" target="_blank">View Change log</a>';
                         if ($changes["count"] > 0) {
-                            echo ' | <a href="' . $update_plugin_url . $slug . '">Update Plugin</a>';
+                            echo ' | <a href="' . esc_url($update_plugin_url . $slug) . '">Update Plugin</a>';
                         }
                         echo '</td>';
                     }
                 } else {
                     $changes = $this->get_changes_since_days($slug, 90);
-                    echo '<td>' . $changes["count"] . ' changes in the last 90 days<br /><a href="https://www.superspeedyplugins.com/support/changelogs/' . $slug . '/?utm_source=' . urlencode($utm_source) . '&utm_content=plugin" target="_blank">View Change log</a></td>';
+                    echo '<td>' . esc_html($changes["count"]) . ' changes in the last 90 days<br /><a href="' . esc_url('https://www.superspeedyplugins.com/support/changelogs/' . $slug . '/?utm_source=' . urlencode($utm_source) . '&utm_content=plugin') . '" target="_blank">View Change log</a></td>';
                 }
-                echo '<td><a href="https://www.superspeedyplugins.com/kb/' . $slug . '/?utm_source=' . urlencode($utm_source) . '&utm_content=plugin" target="_blank">Knowledge Base</a></td>';
-                echo '<td>' . (!empty($ssp_license['discord']) ? '<a href="' . $ssp_license['discord'] . '" target="_blank">Discord Channel</a>' : 'N/A') . '</td>';
+                echo '<td><a href="' . esc_url('https://www.superspeedyplugins.com/kb/' . $slug . '/?utm_source=' . urlencode($utm_source) . '&utm_content=plugin') . '" target="_blank">Knowledge Base</a></td>';
+                echo '<td>' . (!empty($ssp_license['discord']) ? '<a href="' . esc_url($ssp_license['discord']) . '" target="_blank">Discord Channel</a>' : 'N/A') . '</td>';
             
                 echo '</tr>';
             }
@@ -298,7 +305,7 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
             <input type="password" id="<?php echo esc_attr( $args['label_for'] ); ?>"
                     data-custom="<?php echo esc_attr( $args['superspeedy_custom_data'] ); ?>"
                     name="superspeedy_options[<?php echo esc_attr( $args['label_for'] ); ?>]"
-                    value="<?php esc_html_e($license_key);?>">
+                    value="<?php echo esc_attr($license_key);?>">
             <button type="button" id="recheck-license" class="button">Recheck now</button>
     
             <?php
