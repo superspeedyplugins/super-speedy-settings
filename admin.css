@@ -12,6 +12,20 @@ table.superspeedy-plugins tbody td { padding: 4px 5px; }
 table.superspeedy-plugins tbody td:first-child { width: 60px; text-align: center; }
 table.superspeedy-plugins tr td {border-top: 1px solid #ccc; }
 
+/* No focus/active outline or border on the clickable plugin thumbnails */
+table.superspeedy-plugins td:first-child a,
+table.superspeedy-plugins td:first-child a:hover,
+table.superspeedy-plugins td:first-child a:focus,
+table.superspeedy-plugins td:first-child a:active {
+    outline: none;
+    box-shadow: none;
+    border: 0;
+}
+table.superspeedy-plugins td:first-child img {
+    outline: none;
+    border: 0;
+}
+
 /* Plugin name styling */
 .plugin-name-bold {
     font-weight: bold;
