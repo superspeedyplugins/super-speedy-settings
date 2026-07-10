@@ -54,40 +54,36 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
                 <div class="superspeedy-services">
                     <div class="superspeedy-service-panel">
                         <a href="https://www.superspeedyplugins.com/kb/" target="_blank">
-                            <img src="<?php echo plugins_url('images/knowledge-base.png', __FILE__); ?>" alt="Knowledge Base">
+                            <i class="at-open-book-bold" aria-hidden="true"></i>
                             <h2>Knowledge Base</h2>
                             <p>Learn how to use our plugins</p>
                         </a>
                     </div>
-                    
                     <div class="superspeedy-service-panel">
                         <a href="https://www.superspeedyplugins.com/super-speedy-discord/" target="_blank">
-                            <img src="<?php echo plugins_url('images/chat-live-with-developers.png', __FILE__); ?>" alt="Chat Live with Developers">
+                            <i class="at-chat-dots-bold" aria-hidden="true"></i>
                             <h2>Chat Live with Developers</h2>
-                            <p>Get instant answers from our developers through Discord</p>
+                            <p>Instant answers via Discord</p>
                         </a>
                     </div>
-                    
                     <div class="superspeedy-service-panel">
                         <a href="https://www.superspeedyplugins.com/latest/" target="_blank">
-                            <img src="<?php echo plugins_url('images/performance-articles.png', __FILE__); ?>" alt="Performance Articles">
+                            <i class="at-clipboard-lines-document-bold" aria-hidden="true"></i>
                             <h2>Performance Articles</h2>
-                            <p>Read the latest performance articles by Super Speedy Plugins</p>
+                            <p>The latest performance articles</p>
                         </a>
                     </div>
-                    
                     <div class="superspeedy-service-panel">
                         <a href="https://www.superspeedyplugins.com/my-account/" target="_blank">
-                            <img src="<?php echo plugins_url('images/upgrades.png', __FILE__); ?>" alt="View Upgrade Options">
-                            <h2>View Upgrade Options</h2>
-                            <p>Pay-the-difference inside 60 days of purchase</p>
+                            <i class="at-arrow-up-from-square-bold" aria-hidden="true"></i>
+                            <h2>Upgrade Options</h2>
+                            <p>Pay the difference within 60 days</p>
                         </a>
                     </div>
-                    
                     <div class="superspeedy-service-panel">
                         <a href="https://www.superspeedyplugins.com/my-account/" target="_blank">
-                            <img src="<?php echo plugins_url('images/renewals.png', __FILE__); ?>" alt="View Renewal Options">
-                            <h2>View Renewal Options</h2>
+                            <i class="at-arrows-rotating-right-bold" aria-hidden="true"></i>
+                            <h2>Renewal Options</h2>
                             <p>Get 25% off all renewals</p>
                         </a>
                     </div>
@@ -645,6 +641,10 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
             wp_enqueue_script('super_speedy_updates', plugin_dir_url(__FILE__) . 'super-speedy-updates.js', array('jquery'), time(), true);
             // add super-speedy-settings/admin.css to the admin page but ONLY on our admin page
             if ($hook == 'toplevel_page_superspeedy') {
+                // Atlas icon packs (CORS-enabled CDN) for the service panels.
+                foreach (array('basic-ui', 'school', 'arrow') as $ssp_pack) {
+                    wp_enqueue_style('ssp-atlas-' . $ssp_pack, 'https://www.superspeedyplugins.com/assets/packs/' . $ssp_pack . '/style.css', array(), '1.0.0');
+                }
                 wp_enqueue_style('super_speedy_admin', plugin_dir_url(__FILE__) . 'admin.css', array(), time());
                 wp_enqueue_script('super_speedy_settings', plugin_dir_url(__FILE__) . 'super-speedy-settings.js', array('jquery'), time(), true);
                 wp_localize_script('super_speedy_settings', 'superspeedy_ajax', array(

@@ -14,6 +14,9 @@ if (!class_exists('SuperSpeedySettings')) {
             'super-speedy-filters' => array('name' => 'Super Speedy Filters', 'function' => 'fww_update_db_check', 'discord' => 'https://discord.gg/wFmJaNCeyY'),
             'super-speedy-sitemaps' => array('name' => 'Super Speedy Sitemaps', 'function' => 'sssm_active', 'discord' => 'https://discord.com/channels/837258064704438282/1209821217624952895'),
             'super-speedy-ajax-prices' => array('name' => 'Super Speedy Ajax Prices', 'function' => 'wc_ajax_pricing_init', 'discord' => 'https://discord.com/channels/837258064704438282/1476527369329049661'),
+            'super-speedy-chat' => array('name' => 'Super Speedy Chat', 'function' => 'ssc_init_plugin', 'discord' => 'https://discord.gg/zDqg2UX9wp'),
+            'super-speedy-coming-soon' => array('name' => 'Super Speedy Coming Soon', 'function' => 'sscs_maybe_replace_add_to_cart', 'discord' => 'https://discord.gg/zDqg2UX9wp'),
+            'super-speedy-emails' => array('name' => 'Super Speedy Emails', 'function' => 'sse_init', 'discord' => 'https://discord.gg/zDqg2UX9wp'),
         );
 
         protected static function getVersion() {
