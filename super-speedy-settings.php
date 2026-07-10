@@ -641,9 +641,9 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
             wp_enqueue_script('super_speedy_updates', plugin_dir_url(__FILE__) . 'super-speedy-updates.js', array('jquery'), time(), true);
             // add super-speedy-settings/admin.css to the admin page but ONLY on our admin page
             if ($hook == 'toplevel_page_superspeedy') {
-                // Atlas icon packs (CORS-enabled CDN) for the service panels.
+                // Atlas icon packs for the service panels - bundled locally (no external requests).
                 foreach (array('basic-ui', 'school', 'arrow') as $ssp_pack) {
-                    wp_enqueue_style('ssp-atlas-' . $ssp_pack, 'https://www.superspeedyplugins.com/assets/packs/' . $ssp_pack . '/style.css', array(), '1.0.0');
+                    wp_enqueue_style('ssp-atlas-' . $ssp_pack, plugin_dir_url(__FILE__) . 'packs/' . $ssp_pack . '/style.css', array(), '1.0.0');
                 }
                 wp_enqueue_style('super_speedy_admin', plugin_dir_url(__FILE__) . 'admin.css', array(), time());
                 wp_enqueue_script('super_speedy_settings', plugin_dir_url(__FILE__) . 'super-speedy-settings.js', array('jquery'), time(), true);
