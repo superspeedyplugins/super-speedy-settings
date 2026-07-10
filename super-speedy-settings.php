@@ -344,8 +344,6 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
 //                    $keycheckurl = 'https://localhost/wp-json/wpiapi/check_product_key/' . $encoded_licensekey . '/' . $slug . '/' . $parsedurl['host'] . '/';
 //                }
                 $curl = curl_init();
-                curl_setopt($curl, CURLOPT_SSL_VERIFYHOST, FALSE);
-                curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, FALSE);
                 curl_setopt($curl, CURLOPT_URL, $keycheckurl);
                 curl_setopt($curl, CURLOPT_RETURNTRANSFER, TRUE);
                 curl_setopt($curl, CURLOPT_HEADER, FALSE);
