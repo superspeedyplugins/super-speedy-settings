@@ -396,13 +396,15 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
             return array('error' => $api_resp->error, 'message' => $api_resp->error);
         }
         public function add_license_to_remote_update_request($update) {
-            //this function is DEFINITELY called to check for updates but MAYBE not to get the download link - so this should always work
             if (!isset($update->download_url)) return $update;
-            $e = new \Exception;
-            $trace = $e->getTraceAsString();
-            if (strpos($trace, 'wp_update_plugins') === false && strpos($trace, 'wp_ajax_update_plugin') === false) return $update;
-    //        if (strpos($e->getTraceAsString(), 'Plugin_Upgrader->bulk_upgrade') === false) return $update;
-            
+            // ALWAYS append the licence credentials. This used to be gated on the
+            // call stack containing wp_update_plugins / wp_ajax_update_plugin,
+            // which left every other update flow (auto-updates, bulk updates,
+            // WP-CLI) with a BARE download URL - and the auth server's legacy v1
+            // path served bare URLs with no licence check at all, so those flows
+            // updated free forever. The v1 path is now closed server-side; the
+            // params are harmless in non-download contexts (just query args).
+
             $options = get_option( 'superspeedy_options' );
     
             if (!$options) {
