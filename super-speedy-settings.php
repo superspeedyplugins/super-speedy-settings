@@ -339,9 +339,19 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
                 $encoded_licensekey = urlencode($options['superspeedy_field_licensekey']);
 
                 $keycheckurl = 'https://www.superspeedyplugins.com/wp-json/wpiapi/check_product_key/' . $encoded_licensekey . '/' . $slug . '/' . $parsedurl['host'] . '/';
+                // Report the installed version (v=) so the server can track which
+                // build each site runs and when it last updated. Harmless query
+                // param; older servers ignore it. force=1 bypasses the server cache.
+                $ssp_qs = array();
                 if ($force) {
-                    // Tell auth-server to bypass its own 1-hour MySQL cache.
-                    $keycheckurl .= '?force=1';
+                    $ssp_qs['force'] = 1;
+                }
+                $ssp_licenses = self::getLicenses();
+                if (isset($ssp_licenses[$slug]['version']) && $ssp_licenses[$slug]['version'] !== '') {
+                    $ssp_qs['v'] = (string) $ssp_licenses[$slug]['version'];
+                }
+                if (!empty($ssp_qs)) {
+                    $keycheckurl .= '?' . http_build_query($ssp_qs);
                 }
 //                if ($homeurl == "https://localhost") {
 //                    $keycheckurl = 'https://localhost/wp-json/wpiapi/check_product_key/' . $encoded_licensekey . '/' . $slug . '/' . $parsedurl['host'] . '/';
