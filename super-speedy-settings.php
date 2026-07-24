@@ -6,6 +6,11 @@ use SuperSpeedy\PluginUpdateChecker\v5\PucFactory;
 if (!class_exists('SuperSpeedySettings_1_0')) {
     class SuperSpeedySettings_1_0 extends SuperSpeedySettings {
         protected static $version = 1.0;
+        // Version of the shared super-speedy-settings code itself, sent to auth as
+        // &sv= (distinct from a plugin's own build, sent as v=). Lets auth see which
+        // sites run stale settings code (e.g. still checking www, or missing a param).
+        // Bump this whenever the settings code changes in a way worth tracking.
+        const SETTINGS_VERSION = '1.1.0';
         private $update_checkers = array();
         
         
@@ -338,10 +343,14 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
             if (isset($parsedurl['host']) && !empty($parsedurl['host']) && isset($options['superspeedy_field_licensekey']) && !empty($options['superspeedy_field_licensekey']) && !empty($slug)) {
                 $encoded_licensekey = urlencode($options['superspeedy_field_licensekey']);
 
-                $keycheckurl = 'https://www.superspeedyplugins.com/wp-json/wpiapi/check_product_key/' . $encoded_licensekey . '/' . $slug . '/' . $parsedurl['host'] . '/';
-                // Report the installed version (v=) so the server can track which
-                // build each site runs and when it last updated. Harmless query
-                // param; older servers ignore it. force=1 bypasses the server cache.
+                // Licence checks go DIRECT to the auth server. www has no route for
+                // this path and returns rest_no_route (404); new clients hit auth.
+                $keycheckurl = 'https://auth.superspeedyplugins.com/wp-json/wpiapi/check_product_key/' . $encoded_licensekey . '/' . $slug . '/' . $parsedurl['host'] . '/';
+                // Report the installed version (v=) so the server can track which build
+                // each site runs, the site admin email (email=, stored server-side in a
+                // SEPARATE field - NOT a known customer), and the shared settings-code
+                // version (sv=). Harmless query params; older servers ignore them.
+                // force=1 bypasses the server cache.
                 $ssp_qs = array();
                 if ($force) {
                     $ssp_qs['force'] = 1;
@@ -350,6 +359,11 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
                 if (isset($ssp_licenses[$slug]['version']) && $ssp_licenses[$slug]['version'] !== '') {
                     $ssp_qs['v'] = (string) $ssp_licenses[$slug]['version'];
                 }
+                $ssp_admin_email = get_option('admin_email');
+                if ($ssp_admin_email) {
+                    $ssp_qs['email'] = $ssp_admin_email;
+                }
+                $ssp_qs['sv'] = self::SETTINGS_VERSION;
                 if (!empty($ssp_qs)) {
                     $keycheckurl .= '?' . http_build_query($ssp_qs);
                 }
@@ -377,22 +391,22 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
         //        $api_resp = array('activated' => true, 'error' => 'No message');
                 if (isset($api_resp->activated) && (bool) $api_resp->activated == true) {
                     $data = array('error' => 'valid', 'message' => 'Plugin installed with valid key');
-                    set_transient('superspeedy_l_' . $slug, $data, WEEK_IN_SECONDS);
+                    set_transient('superspeedy_l_' . $slug, $data, 2 * HOUR_IN_SECONDS);
                     return $data;
                 }
                 if (isset($api_resp) && $api_resp->error == 'invalid') {
                     $data = array('error' => 'invalid', 'message' => 'Enter a valid license key to enable updates for Super Speedy plugins.');
-                    set_transient('superspeedy_l_' . $slug, $data, WEEK_IN_SECONDS);
+                    set_transient('superspeedy_l_' . $slug, $data, 2 * HOUR_IN_SECONDS);
                     return $data;
                 }
                 if (isset($api_resp) && $api_resp->error == 'expired') {
                     $data = array('error' => 'expired', 'message' => 'License expired - please purchase a license extension to enable updates.');
-                    set_transient('superspeedy_l_' . $slug, $data, WEEK_IN_SECONDS);
+                    set_transient('superspeedy_l_' . $slug, $data, 2 * HOUR_IN_SECONDS);
                     return $data;
                 }
                 if (isset($api_resp) && $api_resp->error == 'exceeded') {
                     $data = array('error' => 'exceeded', 'message' => 'Website limit exceeded - please purchase additional licenses or deactivate a previous website license to enable updates.');
-                    set_transient('superspeedy_l_' . $slug, $data, WEEK_IN_SECONDS);
+                    set_transient('superspeedy_l_' . $slug, $data, 2 * HOUR_IN_SECONDS);
                     return $data;
                 }
             } else {
@@ -441,11 +455,30 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
             if ($domain == 'localhost') {
                 $domain = 'lh';
             }
+            // Installed build (v=), shared settings-code version (sv=) and site admin
+            // email (email=, stored server-side in a SEPARATE field, never treated as a
+            // known customer), so the download path logs the same detail as the check.
+            $upd_slug = isset($update->slug) ? $update->slug : '';
+            $installed_version = '';
+            if ($upd_slug) {
+                if (!function_exists('get_plugins')) {
+                    require_once ABSPATH . 'wp-admin/includes/plugin.php';
+                }
+                foreach (get_plugins() as $upd_file => $upd_data) {
+                    if (strpos($upd_file, $upd_slug . '/') === 0) {
+                        $installed_version = $upd_data['Version'];
+                        break;
+                    }
+                }
+            }
             // Append these parameters to the download_url
             $update->download_url = add_query_arg(array(
                 'license_key' => $license_key,
                 'domain'      => $domain,
-                'license_version' => 2
+                'license_version' => 2,
+                'v'           => $installed_version,
+                'sv'          => self::SETTINGS_VERSION,
+                'email'       => get_option('admin_email'),
             ), $update->download_url);
     
     //            $update->download_url = str_replace('https://www.superspeedyplugins.com', 'https://www.superspeedypluginsXASDASD.com', $update->download_url);
