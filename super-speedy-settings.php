@@ -2,6 +2,17 @@
 
 require_once 'abstract-class-super-speedy-settings.php';
 require 'plugin-update-checker/plugin-update-checker.php';
+
+// Shared `ssp` ability surface (licence status, and installing the rest of the range
+// from this site's own licence). Lives here so one implementation reaches every Super
+// Speedy plugin on its next settings sync; SSP_MCP::init() guards against the nine
+// copies registering nine times. Version-gated on the core Abilities API.
+if ( file_exists( __DIR__ . '/class-ssp-mcp.php' ) ) {
+    require_once __DIR__ . '/class-ssp-mcp.php';
+    if ( function_exists( 'wp_register_ability' ) && class_exists( 'SSP_MCP' ) ) {
+        SSP_MCP::init();
+    }
+}
 use SuperSpeedy\PluginUpdateChecker\v5\PucFactory;
 if (!class_exists('SuperSpeedySettings_1_0')) {
     class SuperSpeedySettings_1_0 extends SuperSpeedySettings {
@@ -10,7 +21,7 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
         // &sv= (distinct from a plugin's own build, sent as v=). Lets auth see which
         // sites run stale settings code (e.g. still checking www, or missing a param).
         // Bump this whenever the settings code changes in a way worth tracking.
-        const SETTINGS_VERSION = '1.1.0';
+        const SETTINGS_VERSION = '1.2.0';
         private $update_checkers = array();
         
         
