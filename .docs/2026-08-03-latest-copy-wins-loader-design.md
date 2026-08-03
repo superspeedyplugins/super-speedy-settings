@@ -1,7 +1,14 @@
 # Latest-copy-wins: making every plugin use the newest bundled settings code
 
-Date: 2026-08-03. Status: 🟡 design/brainstorm - agreed problem, options analysed,
-nothing implemented. Dave's framing: contracts stay backwards compatible forever, so a
+Date: 2026-08-03. Status: ✅ Option B IMPLEMENTED same day in settings 1.5.0 -
+`super-speedy-settings.php` is now the frozen loader stub, the real code moved to
+`super-speedy-settings-core.php` (class `SuperSpeedySettingsCore`), and AIS's load-time
+`class_exists` gate moved to `plugins_loaded`. Verified: old-copy-first mixed sites fall
+back to old behaviour untouched; newest wins in either load order; torn-update falls
+back to the next-best candidate; late (activation-time) registrations drain via the
+`ssp_settings_plugin_registered` action. Options A and C below kept for the record;
+C (a real dependency plugin) remains the long-term destination.
+Dave's framing: contracts stay backwards compatible forever, so a
 newer copy of this submodule must always be safe to run against older plugins.
 
 ## The problem
