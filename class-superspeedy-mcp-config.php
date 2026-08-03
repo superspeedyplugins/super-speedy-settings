@@ -318,8 +318,16 @@ class SuperSpeedy_MCP_Config {
             );
         }
 
-        $updated = array();
+        $updated        = array();
+        $kept_unchanged = array();
         foreach ( $settings as $id => $value ) {
+            // A masked secret written back verbatim means "unchanged" - an
+            // agent that read config then wrote every field back must NEVER
+            // destroy the stored token with the mask.
+            if ( $registry[ $id ]['secret'] && is_string( $value ) && preg_match( '/^\*{4,}$/', trim( $value ) ) ) {
+                $kept_unchanged[] = (string) $id;
+                continue;
+            }
             $clean = $this->sanitise( $registry[ $id ], $value );
             if ( is_wp_error( $clean ) ) {
                 return $clean;
@@ -332,9 +340,10 @@ class SuperSpeedy_MCP_Config {
         }
 
         return array(
-            'updated'   => $updated,
-            'effective' => $this->effective(),
-            'notes'     => __( 'Written. Verify with get-config (or the plugin\'s own inspection abilities) that the effective configuration is what you intended.', 'super-speedy-settings' ),
+            'updated'        => $updated,
+            'kept_unchanged' => $kept_unchanged,
+            'effective'      => $this->effective(),
+            'notes'          => __( 'Written. Verify with get-config (or the plugin\'s own inspection abilities) that the effective configuration is what you intended. Secret fields written back as their mask are kept unchanged.', 'super-speedy-settings' ),
         );
     }
 
@@ -415,6 +424,11 @@ class SuperSpeedy_MCP_Config {
 
             case 'image':
                 return esc_url_raw( (string) $value );
+
+            case 'textarea':
+                // Multiline fields (blocklists, prompts, messages) keep their
+                // newlines - sanitize_text_field would silently collapse them.
+                return sanitize_textarea_field( (string) $value );
 
             default:
                 return sanitize_text_field( (string) $value );
