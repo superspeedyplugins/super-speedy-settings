@@ -384,6 +384,18 @@ class SuperSpeedy_MCP_Config {
      * @return string|array|WP_Error
      */
     protected function sanitise( array $field, $value ) {
+        // TRANSPORT REPAIR FIRST, before any sanitiser sees the value: a list
+        // arriving as a (possibly double-) JSON-encoded string is an AI Engine
+        // transport shape, not caller intent. Doing this only in the `list`
+        // branch below meant a field declaring its own `sanitize` callable
+        // bypassed the repair and rejected a perfectly good array.
+        if ( 'list' === $field['type'] && is_string( $value ) ) {
+            $decoded = self::json_undouble( $value );
+            if ( is_array( $decoded ) ) {
+                $value = $decoded;
+            }
+        }
+
         if ( $field['sanitize'] ) {
             return call_user_func( $field['sanitize'], $value, $field );
         }
