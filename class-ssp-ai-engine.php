@@ -189,6 +189,12 @@ class SSP_AI_Engine {
             return $result;
         }
 
+        // Transport repair BEFORE the Abilities API validates: AI Engine has
+        // historically delivered the whole argument set as a JSON STRING
+        // instead of a decoded object, and double-encoded nested values (a
+        // string containing the JSON of the object the schema expects).
+        $args = self::repair_args( $abilities[ (string) $tool ], $args );
+
         if ( null !== $args && ! is_array( $args ) ) {
             throw new InvalidArgumentException( 'Tool arguments must be an object.' );
         }
@@ -202,6 +208,55 @@ class SSP_AI_Engine {
         }
 
         return $out;
+    }
+
+    /** Decode a value while it is a string that parses as JSON (bounded - handles double encoding). */
+    private static function json_undouble( $value, $max = 3 ) {
+        for ( $i = 0; $i < $max && is_string( $value ); $i++ ) {
+            $decoded = json_decode( $value, true );
+            if ( null === $decoded && 'null' !== strtolower( trim( $value ) ) ) {
+                break; // Not JSON - leave the string alone.
+            }
+            $value = $decoded;
+        }
+        return $value;
+    }
+
+    /**
+     * Repair the two known AI Engine transport bugs without changing valid
+     * input: (1) the whole $args arriving as a JSON string; (2) a top-level
+     * property whose schema expects object/array arriving as a (possibly
+     * double-) JSON-encoded string. Anything that does not decode to the
+     * expected shape is left untouched so the schema validation error stays
+     * honest.
+     */
+    public static function repair_args( $ability, $args ) {
+        if ( is_string( $args ) ) {
+            $decoded = self::json_undouble( $args );
+            if ( is_array( $decoded ) || null === $decoded ) {
+                $args = $decoded;
+            }
+        }
+        if ( ! is_array( $args ) ) {
+            return $args;
+        }
+
+        $schema = $ability->get_input_schema();
+        $props  = isset( $schema['properties'] ) && is_array( $schema['properties'] ) ? $schema['properties'] : array();
+        foreach ( $props as $key => $prop ) {
+            if ( ! array_key_exists( $key, $args ) || ! is_string( $args[ $key ] ) ) {
+                continue;
+            }
+            $types = isset( $prop['type'] ) ? (array) $prop['type'] : array();
+            if ( ! array_intersect( $types, array( 'object', 'array' ) ) ) {
+                continue;
+            }
+            $decoded = self::json_undouble( $args[ $key ] );
+            if ( is_array( $decoded ) ) {
+                $args[ $key ] = $decoded;
+            }
+        }
+        return $args;
     }
 }
 

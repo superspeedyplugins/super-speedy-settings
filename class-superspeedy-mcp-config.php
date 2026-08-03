@@ -192,6 +192,18 @@ class SuperSpeedy_MCP_Config {
         return $raw;
     }
 
+    /** Decode a value while it is a string that parses as JSON (bounded - handles double encoding). */
+    protected static function json_undouble( $value, $max = 3 ) {
+        for ( $i = 0; $i < $max && is_string( $value ); $i++ ) {
+            $decoded = json_decode( $value, true );
+            if ( null === $decoded && 'null' !== strtolower( trim( $value ) ) ) {
+                break;
+            }
+            $value = $decoded;
+        }
+        return $value;
+    }
+
     /** Write one setting into whichever storage shape the plugin uses. */
     protected function store_value( $id, $value ) {
         if ( '' !== $this->args['option_name'] ) {
@@ -258,7 +270,16 @@ class SuperSpeedy_MCP_Config {
 
     public function exec_update_config( $input = array() ) {
         $input    = is_array( $input ) ? $input : array();
-        $settings = isset( $input['settings'] ) && is_array( $input['settings'] ) ? $input['settings'] : array();
+        $settings = isset( $input['settings'] ) ? $input['settings'] : array();
+        // Transport tolerance: some clients (and, historically, AI Engine)
+        // deliver nested objects as JSON strings, sometimes double-encoded.
+        if ( is_string( $settings ) ) {
+            $decoded = self::json_undouble( $settings );
+            if ( is_array( $decoded ) ) {
+                $settings = $decoded;
+            }
+        }
+        $settings = is_array( $settings ) ? $settings : array();
         $confirm  = ! empty( $input['confirm'] );
         $registry = $this->fields();
 
@@ -357,6 +378,14 @@ class SuperSpeedy_MCP_Config {
                 return in_array( strtolower( trim( (string) $value ) ), $truthy, true ) ? $field['on_value'] : $field['off_value'];
 
             case 'list':
+                if ( is_string( $value ) ) {
+                    // Accept a (possibly double-) JSON-encoded array - the
+                    // known AI Engine transport shapes.
+                    $decoded = self::json_undouble( $value );
+                    if ( is_array( $decoded ) ) {
+                        $value = $decoded;
+                    }
+                }
                 if ( ! is_array( $value ) ) {
                     return new WP_Error(
                         'ssp_config_invalid_value',
