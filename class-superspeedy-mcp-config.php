@@ -178,15 +178,29 @@ class SuperSpeedy_MCP_Config {
         return $out;
     }
 
-    /** Stored value if set, else the field default (mirrors the admin form's display logic). */
+    /**
+     * The stored value, or the field default ONLY when nothing is stored.
+     *
+     * The distinction matters: many fields store OFF as an empty string (or a
+     * boolean false) while declaring a truthy default. Treating "stored empty"
+     * as "unset" made get-config report ON for a setting the customer had
+     * turned OFF - and because the documented workflow is read-then-write-back,
+     * the agent would then re-enable it. Existence is therefore tested by key
+     * presence (array storage) or a sentinel (per-key storage), never by the
+     * value's emptiness.
+     */
     protected function current_value( array $field ) {
         if ( '' !== $this->args['option_name'] ) {
             $all = get_option( $this->args['option_name'] );
-            $raw = ( is_array( $all ) && array_key_exists( $field['id'], $all ) ) ? $all[ $field['id'] ] : false;
-        } else {
-            $raw = get_option( $this->args['option_prefix'] . $field['id'] );
+            if ( is_array( $all ) && array_key_exists( $field['id'], $all ) ) {
+                return $all[ $field['id'] ];
+            }
+            return $field['default'];
         }
-        if ( false === $raw || '' === $raw ) {
+
+        $sentinel = '__ssp_mcp_unset__';
+        $raw      = get_option( $this->args['option_prefix'] . $field['id'], $sentinel );
+        if ( $sentinel === $raw ) {
             return $field['default'];
         }
         return $raw;
@@ -318,7 +332,14 @@ class SuperSpeedy_MCP_Config {
             );
         }
 
-        $updated        = array();
+        // ATOMICITY: sanitise EVERYTHING first and only write once every value
+        // has validated. Sanitising inside the write loop meant an invalid
+        // third value left the first two already persisted, while the caller
+        // got an error naming only the third - so an agent reasonably assumed
+        // nothing had been written. Half-applied config is the dangerous case:
+        // on Ajax Prices it could switch the transport without writing the
+        // matching plugin list.
+        $staged         = array();
         $kept_unchanged = array();
         foreach ( $settings as $id => $value ) {
             // A masked secret written back verbatim means "unchanged" - an
@@ -330,8 +351,14 @@ class SuperSpeedy_MCP_Config {
             }
             $clean = $this->sanitise( $registry[ $id ], $value );
             if ( is_wp_error( $clean ) ) {
+                $clean->add_data( array( 'status' => 400, 'written' => array() ), $clean->get_error_code() );
                 return $clean;
             }
+            $staged[ $id ] = $clean;
+        }
+
+        $updated = array();
+        foreach ( $staged as $id => $clean ) {
             $this->store_value( $id, $clean );
             $updated[] = array(
                 'id'    => (string) $id,
@@ -361,6 +388,24 @@ class SuperSpeedy_MCP_Config {
             return call_user_func( $field['sanitize'], $value, $field );
         }
 
+        // Every branch below except `list` casts to string. Casting an array
+        // yields the four characters "Array", which silently destroyed the
+        // stored value - and for a secret field the response and the next read
+        // both showed the mask, so the operator got no signal the credential
+        // was gone. A non-scalar for a scalar field is a caller error: say so.
+        if ( 'list' !== $field['type'] && ! is_scalar( $value ) && ! is_bool( $value ) ) {
+            return new WP_Error(
+                'ssp_config_invalid_value',
+                sprintf(
+                    /* translators: 1: setting id, 2: PHP type supplied */
+                    __( '"%1$s" expects a single value, but %2$s was supplied. Pass a string, number or boolean.', 'super-speedy-settings' ),
+                    $field['id'],
+                    null === $value ? 'null' : gettype( $value )
+                ),
+                array( 'status' => 400 )
+            );
+        }
+
         if ( ! empty( $field['choices'] ) ) {
             $value = trim( (string) $value );
             if ( ! in_array( $value, $field['choices'], true ) ) {
@@ -383,8 +428,26 @@ class SuperSpeedy_MCP_Config {
                 if ( is_bool( $value ) ) {
                     return $value ? $field['on_value'] : $field['off_value'];
                 }
+                $token  = strtolower( trim( (string) $value ) );
                 $truthy = array( 'on', '1', 'true', 'yes', strtolower( $field['on_value'] ) );
-                return in_array( strtolower( trim( (string) $value ) ), $truthy, true ) ? $field['on_value'] : $field['off_value'];
+                $falsy  = array( 'off', '0', 'false', 'no', '', strtolower( $field['off_value'] ) );
+                if ( in_array( $token, $truthy, true ) ) {
+                    return $field['on_value'];
+                }
+                if ( in_array( $token, $falsy, true ) ) {
+                    return $field['off_value'];
+                }
+                // Anything else used to fall through to OFF, so a typo silently
+                // disabled a setting. Refuse instead - a rejected call is safe.
+                return new WP_Error(
+                    'ssp_config_invalid_value',
+                    sprintf(
+                        /* translators: %s: setting id */
+                        __( '"%s" is a switch: pass true or false (or on/off, yes/no, 1/0).', 'super-speedy-settings' ),
+                        $field['id']
+                    ),
+                    array( 'status' => 400 )
+                );
 
             case 'list':
                 if ( is_string( $value ) ) {
@@ -423,7 +486,15 @@ class SuperSpeedy_MCP_Config {
                 return (string) ( 0 + $value );
 
             case 'image':
-                return esc_url_raw( (string) $value );
+                // An image field may hold a URL or a media-library attachment
+                // ID depending on the plugin's picker. esc_url_raw( '4' ) turns
+                // an attachment ID into "http://4", which breaks the image, so
+                // pass a bare integer through untouched.
+                $image = trim( (string) $value );
+                if ( '' === $image ) {
+                    return '';
+                }
+                return ctype_digit( $image ) ? $image : esc_url_raw( $image );
 
             case 'textarea':
                 // Multiline fields (blocklists, prompts, messages) keep their
