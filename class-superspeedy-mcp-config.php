@@ -33,8 +33,12 @@ class SuperSpeedy_MCP_Config {
      *     @type string   $name               Human plugin name (category label).
      *     @type string   $description        Category / plugin description.
      *     @type string   $version            Plugin version, reported by get-config.
-     *     @type string   $option_prefix      Option-name prefix, e.g. 'isw_'.
-     *     @type callable $fields             Returns the FLAT field list (id, label, type, default, description, sensitive).
+     *     @type string   $option_prefix      Per-key storage: option-name prefix, e.g. 'isw_'.
+     *     @type string   $option_name        Array storage: ONE option holding key => value, e.g. 'ei_settings'.
+     *                                        Exactly one of option_prefix / option_name is required.
+     *     @type callable $fields             Returns the FLAT field list (id, label, type, default, description,
+     *                                        sensitive, secret). A `secret` field (API token, key) is masked by
+     *                                        get-config and still writable by update-config.
      *     @type string   $capability         Capability gating both abilities. Default 'manage_options'.
      *     @type callable $effective_callback Optional. Computed "effective config" block for get-config.
      *     @type string[] $extra_abilities    Optional. Further ability names to advertise in get-config.
@@ -49,6 +53,7 @@ class SuperSpeedy_MCP_Config {
             'description'        => '',
             'version'            => '',
             'option_prefix'      => '',
+            'option_name'        => '',
             'fields'             => null,
             'capability'         => 'manage_options',
             'effective_callback' => null,
@@ -57,7 +62,8 @@ class SuperSpeedy_MCP_Config {
             'tool_prefix'        => '',
         ) );
 
-        if ( '' === $this->args['slug'] || '' === $this->args['option_prefix'] || ! $this->args['fields'] ) {
+        if ( '' === $this->args['slug'] || ! $this->args['fields']
+            || ( '' === $this->args['option_prefix'] && '' === $this->args['option_name'] ) ) {
             return;
         }
 
@@ -161,6 +167,12 @@ class SuperSpeedy_MCP_Config {
                 'type'        => isset( $field['type'] ) ? (string) $field['type'] : 'text',
                 'default'     => isset( $field['default'] ) ? $field['default'] : '',
                 'sensitive'   => ! empty( $field['sensitive'] ),
+                'secret'      => ! empty( $field['secret'] ),
+                // Optional richer semantics a plugin's registry may declare:
+                'choices'     => isset( $field['choices'] ) && is_array( $field['choices'] ) ? array_map( 'strval', $field['choices'] ) : array(),
+                'on_value'    => isset( $field['on_value'] ) ? (string) $field['on_value'] : 'on',
+                'off_value'   => isset( $field['off_value'] ) ? (string) $field['off_value'] : '',
+                'sanitize'    => isset( $field['sanitize'] ) && is_callable( $field['sanitize'] ) ? $field['sanitize'] : null,
             );
         }
         return $out;
@@ -168,11 +180,30 @@ class SuperSpeedy_MCP_Config {
 
     /** Stored value if set, else the field default (mirrors the admin form's display logic). */
     protected function current_value( array $field ) {
-        $raw = get_option( $this->args['option_prefix'] . $field['id'] );
+        if ( '' !== $this->args['option_name'] ) {
+            $all = get_option( $this->args['option_name'] );
+            $raw = ( is_array( $all ) && array_key_exists( $field['id'], $all ) ) ? $all[ $field['id'] ] : false;
+        } else {
+            $raw = get_option( $this->args['option_prefix'] . $field['id'] );
+        }
         if ( false === $raw || '' === $raw ) {
             return $field['default'];
         }
         return $raw;
+    }
+
+    /** Write one setting into whichever storage shape the plugin uses. */
+    protected function store_value( $id, $value ) {
+        if ( '' !== $this->args['option_name'] ) {
+            $all = get_option( $this->args['option_name'] );
+            if ( ! is_array( $all ) ) {
+                $all = array();
+            }
+            $all[ $id ] = $value;
+            update_option( $this->args['option_name'], $all );
+            return;
+        }
+        update_option( $this->args['option_prefix'] . $id, $value );
     }
 
     protected function effective() {
@@ -185,15 +216,26 @@ class SuperSpeedy_MCP_Config {
     public function exec_get_config() {
         $settings = array();
         foreach ( $this->fields() as $field ) {
-            $settings[] = array(
+            $value = $this->current_value( $field );
+            if ( $field['secret'] ) {
+                // API tokens and keys never echo back through the read tool -
+                // report only whether one is set. update-config can still write.
+                $value = ( is_scalar( $value ) && '' !== (string) $value ) ? '********' : '';
+            }
+            $row = array(
                 'id'          => $field['id'],
                 'label'       => $field['label'],
                 'description' => $field['description'],
                 'type'        => $field['type'],
-                'default'     => is_scalar( $field['default'] ) ? (string) $field['default'] : '',
-                'value'       => (string) $this->current_value( $field ),
+                'default'     => is_scalar( $field['default'] ) ? (string) $field['default'] : wp_json_encode( $field['default'] ),
+                'value'       => is_scalar( $value ) ? (string) $value : wp_json_encode( $value ),
                 'sensitive'   => (bool) $field['sensitive'],
+                'secret'      => (bool) $field['secret'],
             );
+            if ( ! empty( $field['choices'] ) ) {
+                $row['choices'] = $field['choices'];
+            }
+            $settings[] = $row;
         }
 
         $abilities = array_merge(
@@ -261,8 +303,11 @@ class SuperSpeedy_MCP_Config {
             if ( is_wp_error( $clean ) ) {
                 return $clean;
             }
-            update_option( $this->args['option_prefix'] . $id, $clean );
-            $updated[] = array( 'id' => (string) $id, 'value' => (string) $clean );
+            $this->store_value( $id, $clean );
+            $updated[] = array(
+                'id'    => (string) $id,
+                'value' => $registry[ $id ]['secret'] ? '********' : ( is_scalar( $clean ) ? (string) $clean : wp_json_encode( $clean ) ),
+            );
         }
 
         return array(
@@ -273,18 +318,57 @@ class SuperSpeedy_MCP_Config {
     }
 
     /**
-     * Per-type sanitisation. Checkboxes store 'on'/'' like the admin form;
-     * numbers must be numeric; everything else is treated as text.
+     * Per-type sanitisation. Checkboxes store on_value/off_value ('on'/'' by
+     * default - a registry can declare 'yes'/'no' storage instead); a `choices`
+     * list validates enums; a `sanitize` callable overrides everything; `list`
+     * fields accept an array of strings; numbers must be numeric; everything
+     * else is treated as text.
      *
-     * @return string|WP_Error
+     * @return string|array|WP_Error
      */
     protected function sanitise( array $field, $value ) {
+        if ( $field['sanitize'] ) {
+            return call_user_func( $field['sanitize'], $value, $field );
+        }
+
+        if ( ! empty( $field['choices'] ) ) {
+            $value = trim( (string) $value );
+            if ( ! in_array( $value, $field['choices'], true ) ) {
+                return new WP_Error(
+                    'ssp_config_invalid_value',
+                    sprintf(
+                        /* translators: 1: setting id, 2: comma-separated valid values */
+                        __( '"%1$s" must be one of: %2$s.', 'super-speedy-settings' ),
+                        $field['id'],
+                        implode( ', ', $field['choices'] )
+                    ),
+                    array( 'status' => 400 )
+                );
+            }
+            return $value;
+        }
+
         switch ( $field['type'] ) {
             case 'checkbox':
                 if ( is_bool( $value ) ) {
-                    return $value ? 'on' : '';
+                    return $value ? $field['on_value'] : $field['off_value'];
                 }
-                return in_array( strtolower( trim( (string) $value ) ), array( 'on', '1', 'true', 'yes' ), true ) ? 'on' : '';
+                $truthy = array( 'on', '1', 'true', 'yes', strtolower( $field['on_value'] ) );
+                return in_array( strtolower( trim( (string) $value ) ), $truthy, true ) ? $field['on_value'] : $field['off_value'];
+
+            case 'list':
+                if ( ! is_array( $value ) ) {
+                    return new WP_Error(
+                        'ssp_config_invalid_value',
+                        sprintf(
+                            /* translators: %s: setting id */
+                            __( '"%s" expects an array of strings.', 'super-speedy-settings' ),
+                            $field['id']
+                        ),
+                        array( 'status' => 400 )
+                    );
+                }
+                return array_values( array_map( 'sanitize_text_field', array_map( 'strval', $value ) ) );
 
             case 'number':
                 if ( ! is_numeric( $value ) ) {
