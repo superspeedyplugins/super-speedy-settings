@@ -38,7 +38,7 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
         // &sv= (distinct from a plugin's own build, sent as v=). Lets auth see which
         // sites run stale settings code (e.g. still checking www, or missing a param).
         // Bump this whenever the settings code changes in a way worth tracking.
-        const SETTINGS_VERSION = '1.3.0';
+        const SETTINGS_VERSION = '1.4.0';
         private $update_checkers = array();
         
         
@@ -151,7 +151,8 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
                 $this->update_checkers[$slug] = PucFactory::buildUpdateChecker(
                     'https://www.superspeedyplugins.com/assets/plugins/' . $slug . '.json',
                     $ssp_license['file'], //Full path to the main plugin file or functions.php.
-                    $slug
+                    $slug,
+                    $this->check_period_hours() // issue #267: user-cappable check cadence
                 );
                 add_filter('puc_pre_inject_update-' . $slug, array($this, 'add_license_to_remote_update_request'));
             }
@@ -221,7 +222,7 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
         
             // Register a new field in the "superspeedy_section_license" section, inside the "wpintense" page.
             add_settings_field(
-                'superspeedy_field_licensekey', 
+                'superspeedy_field_licensekey',
                 __( 'License Key', 'superspeedy' ),
                 array($this, 'field_licensekey_cb'),
                 'superspeedy',
@@ -232,6 +233,39 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
                     'superspeedy_custom_data' => 'custom',
                 )
             );
+
+            // Issue #267: user control over how often the plugins phone home.
+            add_settings_field(
+                'superspeedy_field_checkfrequency',
+                __( 'Check frequency', 'superspeedy' ),
+                array($this, 'field_checkfrequency_cb'),
+                'superspeedy',
+                'superspeedy_section_license',
+                array(
+                    'label_for' => 'superspeedy_field_checkfrequency',
+                    'class'     => 'superspeedy_row',
+                )
+            );
+        }
+        public function field_checkfrequency_cb( $args ) {
+            $options = get_option( 'superspeedy_options' );
+            $current = is_array($options) && isset($options[ $args['label_for'] ]) ? $options[ $args['label_for'] ] : '';
+            $choices = array(
+                ''       => __( 'Default - licence every 2 hours, updates twice a day', 'superspeedy' ),
+                'daily'  => __( 'At most once a day', 'superspeedy' ),
+                'weekly' => __( 'At most once a week', 'superspeedy' ),
+            );
+            echo '<select id="' . esc_attr( $args['label_for'] ) . '" name="superspeedy_options[' . esc_attr( $args['label_for'] ) . ']">';
+            foreach ( $choices as $value => $label ) {
+                echo '<option value="' . esc_attr( $value ) . '"' . selected( $current, $value, false ) . '>' . esc_html( $label ) . '</option>';
+            }
+            echo '</select>';
+            echo '<p class="description">' . esc_html__( 'How often the Super Speedy plugins contact superspeedyplugins.com for licence, update and changelog checks. Checks only ever run while someone is logged in to wp-admin, so this is a cap, not a schedule. The Recheck now button always checks immediately.', 'superspeedy' ) . '</p>';
+            $last = (int) get_option( 'superspeedy_last_check' );
+            if ( $last > 0 ) {
+                /* translators: %s: human-readable time difference, e.g. "3 hours" */
+                echo '<p class="description">' . esc_html( sprintf( __( 'Licence last checked: %s ago.', 'superspeedy' ), human_time_diff( $last ) ) ) . '</p>';
+            }
         }
         public function settings_intro() {
             ?>
@@ -339,6 +373,35 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
     
             <?php
         }
+        /**
+         * Issue #267: how often the plugins phone home for licence, update and
+         * changelog data. '' = the classic cadence (licence 2h, changelog 2h/8h,
+         * updates 12h). Every check is lazy - it only ever fires while someone
+         * is in wp-admin and the relevant cache has expired - so this is a cap
+         * on frequency, not a schedule. The "Recheck now" button always checks
+         * immediately regardless.
+         */
+        protected function check_frequency() {
+            $options = get_option('superspeedy_options');
+            $freq = is_array($options) && isset($options['superspeedy_field_checkfrequency']) ? $options['superspeedy_field_checkfrequency'] : '';
+            return in_array($freq, array('daily', 'weekly'), true) ? $freq : '';
+        }
+        /** Cache TTL for licence/changelog data: the classic TTL, or the user's chosen interval if longer. */
+        protected function check_ttl($default_ttl) {
+            switch ($this->check_frequency()) {
+                case 'daily':  return max($default_ttl, DAY_IN_SECONDS);
+                case 'weekly': return max($default_ttl, WEEK_IN_SECONDS);
+            }
+            return $default_ttl;
+        }
+        /** Update-checker period in hours for PucFactory::buildUpdateChecker(). */
+        protected function check_period_hours() {
+            switch ($this->check_frequency()) {
+                case 'daily':  return 24;
+                case 'weekly': return 168;
+            }
+            return 12;
+        }
         function check_license($slug, $force = false) {
             $options = get_option('superspeedy_options');
 
@@ -402,15 +465,22 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
                 curl_setopt($curl, CURLOPT_URL, $keycheckurl);
                 curl_setopt($curl, CURLOPT_RETURNTRANSFER, TRUE);
                 curl_setopt($curl, CURLOPT_HEADER, FALSE);
-                curl_setopt($curl, CURLOPT_CONNECTTIMEOUT, 60);
-                curl_setopt($curl, CURLOPT_TIMEOUT,60);
+                // Issue #165: a challenged/unreachable server must not hang the
+                // settings page. 60s here meant up to a minute PER PLUGIN when
+                // the auth server could not be reached; fail fast instead - the
+                // result is cached either way and the next visit retries.
+                curl_setopt($curl, CURLOPT_CONNECTTIMEOUT, 10);
+                curl_setopt($curl, CURLOPT_TIMEOUT, 15);
     
                 curl_setopt($curl, CURLOPT_HTTPHEADER, array(
                 "Accept: application/json", 
                 "Cache-Control: no-cache"
                 ));
                 $keycheckdata = curl_exec($curl);
-    
+                // Issue #267: remember when we last actually phoned home, so the
+                // settings page can show it next to the frequency choice.
+                update_option('superspeedy_last_check', time(), false);
+
                 //echo "<pre>" . print_r($keycheckdata, true) . "</pre>";
     
                 $api_resp = json_decode($keycheckdata);
@@ -419,22 +489,22 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
         //        $api_resp = array('activated' => true, 'error' => 'No message');
                 if (isset($api_resp->activated) && (bool) $api_resp->activated == true) {
                     $data = array('error' => 'valid', 'message' => 'Plugin installed with valid key');
-                    set_transient('superspeedy_l_' . $slug, $data, 2 * HOUR_IN_SECONDS);
+                    set_transient('superspeedy_l_' . $slug, $data, $this->check_ttl(2 * HOUR_IN_SECONDS));
                     return $data;
                 }
                 if (isset($api_resp) && $api_resp->error == 'invalid') {
                     $data = array('error' => 'invalid', 'message' => 'Enter a valid license key to enable updates for Super Speedy plugins.');
-                    set_transient('superspeedy_l_' . $slug, $data, 2 * HOUR_IN_SECONDS);
+                    set_transient('superspeedy_l_' . $slug, $data, $this->check_ttl(2 * HOUR_IN_SECONDS));
                     return $data;
                 }
                 if (isset($api_resp) && $api_resp->error == 'expired') {
                     $data = array('error' => 'expired', 'message' => 'License expired - please purchase a license extension to enable updates.');
-                    set_transient('superspeedy_l_' . $slug, $data, 2 * HOUR_IN_SECONDS);
+                    set_transient('superspeedy_l_' . $slug, $data, $this->check_ttl(2 * HOUR_IN_SECONDS));
                     return $data;
                 }
                 if (isset($api_resp) && $api_resp->error == 'exceeded') {
                     $data = array('error' => 'exceeded', 'message' => 'Website limit exceeded - please purchase additional licenses or deactivate a previous website license to enable updates.');
-                    set_transient('superspeedy_l_' . $slug, $data, 2 * HOUR_IN_SECONDS);
+                    set_transient('superspeedy_l_' . $slug, $data, $this->check_ttl(2 * HOUR_IN_SECONDS));
                     return $data;
                 }
             } else {
@@ -443,7 +513,7 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
     
     //        return array('error' => $api_resp->error, 'message' => 'Enter a valid license key to enable updates for WP Intense plugins.');
             $data = array('error' => $api_resp->error, 'message' => $api_resp->error);
-            set_transient('superspeedy_l_' . $slug, $data, HOUR_IN_SECONDS);
+            set_transient('superspeedy_l_' . $slug, $data, $this->check_ttl(HOUR_IN_SECONDS));
     
             return array('error' => $api_resp->error, 'message' => $api_resp->error);
         }
@@ -520,15 +590,18 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
             }
             // Open the changelog file
             $response = $this->remote_get('https://www.superspeedyplugins.com/assets/plugins/' . $plugin . '/readme.txt?v=' . $version);
-    
-            // Check if there was an error in retrieving the content
-            if (is_wp_error($response)) {
+
+            // Check if there was an error in retrieving the content. Issue #165:
+            // a non-200 (e.g. a Cloudflare challenge page) is NOT a WP_Error but
+            // its HTML body must not be parsed as a readme - treat it as a
+            // failed check too.
+            if (is_wp_error($response) || (int) wp_remote_retrieve_response_code($response) !== 200) {
                 $result = ["count" => 0, "changes" => 0];
                 // Store failed retrieval for 1 hour
-                set_transient($transient_key, $result, 1 * HOUR_IN_SECONDS);
+                set_transient($transient_key, $result, $this->check_ttl(1 * HOUR_IN_SECONDS));
                 return false; // failed to check for updates
             }
-    
+
             $file_content = wp_remote_retrieve_body($response);
             $lines = array_map('trim', explode("\n", $file_content));
     
@@ -582,7 +655,7 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
             // Prepare result
             $result = ["count" => $count, "changes" => $changes];
             // Store data in cache, keep it for 8 hours
-            set_transient($transient_key, $result, 8 * HOUR_IN_SECONDS);
+            set_transient($transient_key, $result, $this->check_ttl(8 * HOUR_IN_SECONDS));
             return $result;
         }
         function get_changes_since_days($plugin, $days) {
@@ -594,8 +667,9 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
 
             $response = $this->remote_get('https://www.superspeedyplugins.com/assets/plugins/' . $plugin . '/readme.txt');
 
-            // Check if there was an error in retrieving the content
-            if (is_wp_error($response)) {
+            // Check if there was an error in retrieving the content (issue #165:
+            // non-200 challenge pages count as failure, same as above)
+            if (is_wp_error($response) || (int) wp_remote_retrieve_response_code($response) !== 200) {
                 return false; // failed to check for updates
             }
 
@@ -650,7 +724,7 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
             $result = ["count" => $count, "changes" => $changes];
 
             // Store data in cache, keep it for 24 hours
-            set_transient($transient_key, $result, 24 * HOUR_IN_SECONDS);
+            set_transient($transient_key, $result, $this->check_ttl(24 * HOUR_IN_SECONDS));
 
             return $result;
 
@@ -668,9 +742,9 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
         
             // If not in transient, fetch the content
             $response = wp_remote_get($url, $args);
-        
+
             // Cache the response, whether it's a WP_Error or not
-            set_transient($transient_key, $response, 2 * HOUR_IN_SECONDS);
+            set_transient($transient_key, $response, $this->check_ttl(2 * HOUR_IN_SECONDS));
         
             return $response;
         }
