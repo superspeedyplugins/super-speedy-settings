@@ -95,6 +95,8 @@ class SSP_MCP {
             'super-speedy-sitemaps'     => array( 'name' => 'Super Speedy Sitemaps',     'file' => 'super-speedy-sitemaps/super-speedy-sitemaps.php' ),
             'super-speedy-emails'       => array( 'name' => 'Super Speedy Emails',       'file' => 'super-speedy-emails/super-speedy-emails.php' ),
             'delayed-image-import'      => array( 'name' => 'Delayed Image Import',      'file' => 'delayed-image-import/delayed-image-import.php' ),
+            'fullscreen-typeform'       => array( 'name' => 'Fullscreen Typeform',       'file' => 'fullscreen-typeform/fullscreen-typeform.php' ),
+            'super-speedy-chat'         => array( 'name' => 'Super Speedy Chat',         'file' => 'super-speedy-chat/super-speedy-chat.php' ),
         );
         return (array) apply_filters( 'superspeedy_known_plugins', $known );
     }
@@ -137,6 +139,9 @@ class SSP_MCP {
             'meta'                => array(
                 'annotations'  => array( 'readonly' => false, 'destructive' => false, 'idempotent' => true ),
                 'show_in_rest' => true,
+                // Installing code warrants AI Engine's admin connection role even
+                // though the ability is not annotated destructive (it is reversible).
+                'ai_engine'    => array( 'accessLevel' => 'admin' ),
             ),
             'label'               => __( 'Install a Super Speedy plugin', 'super-speedy-settings' ),
             'description'         => __( 'Install, and optionally activate, one of the Super Speedy plugins using this site\'s own licence. You pass only the plugin slug — the download is resolved from the licensed update server, never from a URL you supply. Requires confirm=true. Use list-plugins to see the available slugs. If the plugin is already installed this reports that and changes nothing.', 'super-speedy-settings' ),

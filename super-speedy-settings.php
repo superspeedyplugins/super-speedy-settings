@@ -13,6 +13,23 @@ if ( file_exists( __DIR__ . '/class-ssp-mcp.php' ) ) {
         SSP_MCP::init();
     }
 }
+// AI Engine aliases (SSP_AI_Engine): mirrors the ssp abilities - and any plugin
+// namespace registered with it - onto AI Engine's MCP endpoint. Pure filters, so
+// inert unless AI Engine is active. Must load BEFORE plugins instantiate
+// SuperSpeedy_MCP_Config, which registers its namespace with the adapter.
+if ( file_exists( __DIR__ . '/class-ssp-ai-engine.php' ) ) {
+    require_once __DIR__ . '/class-ssp-ai-engine.php';
+    if ( function_exists( 'wp_register_ability' ) && class_exists( 'SSP_AI_Engine' ) ) {
+        SSP_AI_Engine::init();
+    }
+}
+// Shared config base (SuperSpeedy_MCP_Config): opt-in <slug>/get-config +
+// <slug>/update-config for any plugin that instantiates it with its settings
+// registry. Defining the class activates nothing by itself.
+if ( file_exists( __DIR__ . '/class-superspeedy-mcp-config.php' )
+    && function_exists( 'wp_register_ability' ) ) {
+    require_once __DIR__ . '/class-superspeedy-mcp-config.php';
+}
 use SuperSpeedy\PluginUpdateChecker\v5\PucFactory;
 if (!class_exists('SuperSpeedySettings_1_0')) {
     class SuperSpeedySettings_1_0 extends SuperSpeedySettings {
@@ -21,7 +38,7 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
         // &sv= (distinct from a plugin's own build, sent as v=). Lets auth see which
         // sites run stale settings code (e.g. still checking www, or missing a param).
         // Bump this whenever the settings code changes in a way worth tracking.
-        const SETTINGS_VERSION = '1.2.0';
+        const SETTINGS_VERSION = '1.3.0';
         private $update_checkers = array();
         
         
