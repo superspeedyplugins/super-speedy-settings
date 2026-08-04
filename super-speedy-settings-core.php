@@ -53,7 +53,7 @@ if (!class_exists('SuperSpeedySettingsCore')) {
         // &sv= (distinct from a plugin's own build, sent as v=). Lets auth see which
         // sites run stale settings code (e.g. still checking www, or missing a param).
         // Bump this whenever the settings code changes in a way worth tracking.
-        const SETTINGS_VERSION = '1.5.5';
+        const SETTINGS_VERSION = '1.5.6';
         private $update_checkers = array();
         
         
@@ -96,7 +96,12 @@ if (!class_exists('SuperSpeedySettingsCore')) {
             settings_errors( 'superspeedy_messages' );
             ?>
             <div class="wrap">
-                <div class="super-speedy-plugins-admin-header"><a href="https://www.superspeedyplugins.com/" target="_blank"><img src="<?php echo plugins_url('super-speedy-plugins.svg', __FILE__); ?>"></a></div>
+                <?php
+                // The header panel is white, so the BLACK text logo belongs
+                // here. The white variant ships alongside it for any plugin
+                // that needs a logo on a dark background.
+                ?>
+                <div class="super-speedy-plugins-admin-header"><a href="https://www.superspeedyplugins.com/" target="_blank"><img src="<?php echo esc_url( plugins_url( 'super-speedy-plugins-black-text.png', __FILE__ ) ); ?>" width="151" height="32" alt="Super Speedy Plugins"></a></div>
                 
                 <!-- Service panels flexbox -->
                 <div class="superspeedy-services">
