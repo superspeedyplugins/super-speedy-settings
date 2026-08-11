@@ -89,6 +89,7 @@ class SSP_MCP {
             'super-speedy-search'       => array( 'name' => 'Super Speedy Search',       'file' => 'super-speedy-search/super-speedy-search.php' ),
             'super-speedy-imports'      => array( 'name' => 'Super Speedy Imports',      'file' => 'super-speedy-imports/super-speedy-imports.php' ),
             'scalability-pro'           => array( 'name' => 'Scalability Pro',           'file' => 'scalability-pro/scalability-pro.php' ),
+            'super-speedy-performance-analysis' => array( 'name' => 'Super Speedy Performance Analysis', 'file' => 'super-speedy-performance-analysis/super-speedy-performance-analysis.php' ),
             'external-images'           => array( 'name' => 'External Images',           'file' => 'external-images/external-images.php' ),
             'auto-infinite-scroll'      => array( 'name' => 'Auto Infinite Scroll',      'file' => 'auto-infinite-scroll/auto-infinite-scroll.php' ),
             'super-speedy-ajax-prices'  => array( 'name' => 'Super Speedy Ajax Prices',  'file' => 'super-speedy-ajax-prices/super-speedy-ajax-prices.php' ),
@@ -254,13 +255,22 @@ class SSP_MCP {
             );
         }
 
-        // Carry the licence so the server hands back the real zip rather than a
-        // "not licensed" stub.
+        // Carry the licence with the SAME parameter set the update checker sends
+        // (add_license_to_remote_update_request in super-speedy-settings-core.php).
+        // The auth server refuses anything without license_version=2 as a legacy
+        // client, so a bare license_key is not enough.
         $key = self::licence_key();
         if ( $key !== '' ) {
+            $domain = (string) wp_parse_url( get_home_url(), PHP_URL_HOST );
+            if ( $domain === 'localhost' ) {
+                $domain = 'lh';
+            }
             $url = add_query_arg( array(
-                'license_key' => rawurlencode( $key ),
-                'site'        => rawurlencode( (string) wp_parse_url( get_home_url(), PHP_URL_HOST ) ),
+                'license_key'     => $key,
+                'domain'          => $domain,
+                'license_version' => 2,
+                'sv'              => class_exists( 'SuperSpeedySettingsCore' ) ? SuperSpeedySettingsCore::SETTINGS_VERSION : '',
+                'email'           => get_option( 'admin_email' ),
             ), $url );
         }
 
