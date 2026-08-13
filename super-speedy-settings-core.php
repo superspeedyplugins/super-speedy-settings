@@ -18,6 +18,14 @@ if (!defined('ABSPATH')) { return; }
 require_once __DIR__ . '/abstract-class-super-speedy-settings.php';
 require_once __DIR__ . '/plugin-update-checker/plugin-update-checker.php';
 
+// Use the official WordPress MCP Adapter. An already-loaded standalone plugin
+// or Composer copy wins; otherwise the bundled package is loaded through the
+// Jetpack Autoloader recommended by the adapter project.
+if ( file_exists( __DIR__ . '/class-ssp-official-mcp-adapter.php' ) ) {
+    require_once __DIR__ . '/class-ssp-official-mcp-adapter.php';
+    SSP_Official_MCP_Adapter::bootstrap();
+}
+
 // Shared `ssp` ability surface (licence status, and installing the rest of the range
 // from this site's own licence). Lives here so one implementation reaches every Super
 // Speedy plugin on its next settings sync; SSP_MCP::init() guards against the nine
@@ -45,15 +53,19 @@ if ( file_exists( __DIR__ . '/class-superspeedy-mcp-config.php' )
     && function_exists( 'wp_register_ability' ) ) {
     require_once __DIR__ . '/class-superspeedy-mcp-config.php';
 }
+if ( file_exists( __DIR__ . '/class-ssp-mcp-setup.php' ) ) {
+    require_once __DIR__ . '/class-ssp-mcp-setup.php';
+    SSP_MCP_Setup::init();
+}
 use SuperSpeedy\PluginUpdateChecker\v5\PucFactory;
 if (!class_exists('SuperSpeedySettingsCore')) {
     class SuperSpeedySettingsCore extends SuperSpeedySettings {
-        protected static $version = 1.5;
+        protected static $version = 1.6;
         // Version of the shared super-speedy-settings code itself, sent to auth as
         // &sv= (distinct from a plugin's own build, sent as v=). Lets auth see which
         // sites run stale settings code (e.g. still checking www, or missing a param).
         // Bump this whenever the settings code changes in a way worth tracking.
-        const SETTINGS_VERSION = '1.5.8';
+        const SETTINGS_VERSION = '1.6.0';
         private $update_checkers = array();
         
         
@@ -807,7 +819,7 @@ if (!class_exists('SuperSpeedySettingsCore')) {
         public function enqueue_admin_script( $hook ) {
             wp_enqueue_script('super_speedy_updates', plugin_dir_url(__FILE__) . 'super-speedy-updates.js', array('jquery'), time(), true);
             // add super-speedy-settings/admin.css to the admin page but ONLY on our admin page
-            if ($hook == 'toplevel_page_superspeedy') {
+            if ($hook == 'toplevel_page_superspeedy' || $hook == 'super-speedy_page_' . SSP_MCP_Setup::PAGE_SLUG) {
                 // Atlas icon packs for the service panels - bundled locally (no external requests).
                 foreach (array('basic-ui', 'school', 'arrow') as $ssp_pack) {
                     wp_enqueue_style('ssp-atlas-' . $ssp_pack, plugin_dir_url(__FILE__) . 'packs/' . $ssp_pack . '/style.css', array(), '1.0.0');
@@ -816,6 +828,17 @@ if (!class_exists('SuperSpeedySettingsCore')) {
                 wp_enqueue_script('super_speedy_settings', plugin_dir_url(__FILE__) . 'super-speedy-settings.js', array('jquery'), time(), true);
                 wp_localize_script('super_speedy_settings', 'superspeedy_ajax', array(
                     'nonce' => wp_create_nonce('superspeedy_recheck_license')
+                ));
+            }
+            if ($hook == 'super-speedy_page_' . SSP_MCP_Setup::PAGE_SLUG) {
+                wp_enqueue_script('super_speedy_mcp_setup', plugin_dir_url(__FILE__) . 'mcp-setup.js', array('jquery'), self::SETTINGS_VERSION, true);
+                wp_localize_script('super_speedy_mcp_setup', 'superspeedy_mcp', array(
+                    'nonce'      => wp_create_nonce('superspeedy_mcp_setup'),
+                    'generate'   => __('Generate connection commands', 'super-speedy-settings'),
+                    'generating' => __('Generating…', 'super-speedy-settings'),
+                    'replace'    => __('Replace connection commands', 'super-speedy-settings'),
+                    'copied'     => __('Copied', 'super-speedy-settings'),
+                    'error'      => __('The connection command could not be generated.', 'super-speedy-settings'),
                 ));
             }
         }

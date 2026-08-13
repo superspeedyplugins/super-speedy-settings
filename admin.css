@@ -118,3 +118,25 @@ table.superspeedy-plugins td:first-child img {
         flex: 1 1 calc(50% - 10px);
     }
 }
+
+.superspeedy-mcp-setup { max-width: 1120px; }
+.superspeedy-mcp-setup > h1 { margin-top: 24px; }
+.ssp-mcp-status-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 22px 0 16px; }
+.ssp-mcp-card { box-sizing: border-box; background: #fff; border: 1px solid #dcdcde; border-radius: 8px; padding: 20px; }
+.ssp-mcp-card h2 { margin-top: 0; }
+.ssp-mcp-card dl { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 8px 12px; margin-bottom: 0; }
+.ssp-mcp-card dt { font-weight: 600; }
+.ssp-mcp-card dd { margin: 0; overflow-wrap: anywhere; }
+.ssp-mcp-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; background: #d63638; }
+.ssp-mcp-dot.is-ready { background: #00a32a; }
+.ssp-mcp-card li { margin-bottom: 10px; }
+.ssp-mcp-card li.is-complete::marker { color: #00a32a; font-weight: 700; }
+.ssp-mcp-card .notice.inline { margin: 14px 0 0; }
+.ssp-mcp-command-card { margin-bottom: 16px; }
+.ssp-mcp-existing { border-left: 4px solid #72aee6; padding-left: 10px; }
+.ssp-mcp-command { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 8px; margin: 6px 0 16px; }
+.ssp-mcp-command textarea { box-sizing: border-box; width: 100%; font-family: Consolas, Monaco, monospace; font-size: 12px; }
+@media (max-width: 782px) {
+    .ssp-mcp-status-grid { grid-template-columns: 1fr; }
+    .ssp-mcp-command { grid-template-columns: 1fr; }
+}

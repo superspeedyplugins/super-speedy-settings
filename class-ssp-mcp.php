@@ -109,6 +109,7 @@ class SSP_MCP {
             'meta'     => array(
                 'annotations'  => array( 'readonly' => true, 'destructive' => false, 'idempotent' => true ),
                 'show_in_rest' => true,
+                'mcp'          => array( 'public' => true, 'type' => 'tool' ),
             ),
         );
 
@@ -140,6 +141,7 @@ class SSP_MCP {
             'meta'                => array(
                 'annotations'  => array( 'readonly' => false, 'destructive' => false, 'idempotent' => true ),
                 'show_in_rest' => true,
+                'mcp'          => array( 'public' => true, 'type' => 'tool' ),
                 // Installing code warrants AI Engine's admin connection role even
                 // though the ability is not annotated destructive (it is reversible).
                 'ai_engine'    => array( 'accessLevel' => 'admin' ),
