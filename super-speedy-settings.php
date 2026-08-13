@@ -35,20 +35,6 @@
 
 if (!defined('ABSPATH')) { return; }
 
-// Composer packages must be registered as each plugin file loads, before any
-// plugin asks for a shared class. This is deliberately the sole bootstrap
-// exception in the frozen stub: Jetpack Autoloader can then select the newest
-// MCP Adapter package across Super Speedy, WooCommerce and other integrations.
-// It registers packages only; the winning settings core still decides whether
-// and when to initialise the adapter on plugins_loaded.
-if ( version_compare( PHP_VERSION, '7.4', '>=' ) ) {
-    $ssp_settings_package_autoloader = __DIR__ . '/vendor/autoload_packages.php';
-    if ( is_readable( $ssp_settings_package_autoloader ) ) {
-        require_once $ssp_settings_package_autoloader;
-    }
-    unset( $ssp_settings_package_autoloader );
-}
-
 if (!class_exists('SuperSpeedySettings_1_0')) {
 
     /**
@@ -89,5 +75,5 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
 // serving the site and this copy must stay silent.
 if (defined('SuperSpeedySettings_1_0::SSP_REGISTRY_FACADE')) {
     // Keep this literal in sync with SuperSpeedySettingsCore::SETTINGS_VERSION.
-    $GLOBALS['ssp_settings_candidates']['1.6.0'] = __DIR__;
+    $GLOBALS['ssp_settings_candidates']['1.6.1'] = __DIR__;
 }

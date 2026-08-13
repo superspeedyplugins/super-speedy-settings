@@ -38,10 +38,10 @@ if ( ! class_exists( 'SSP_Official_MCP_Adapter' ) ) {
 
             $adapter_class = '\\WP\\MCP\\Core\\McpAdapter';
 
-            // Every normal plugin file has loaded before plugins_loaded runs. If
-            // the standalone official plugin, or another Composer integration,
-            // supplied the class, use it and never load our bundled copy.
-            if ( class_exists( $adapter_class ) ) {
+            // The standalone official plugin loads its class from its plugin file,
+            // before plugins_loaded. Check without triggering another plugin's
+            // autoloader so an older Composer copy cannot win accidentally.
+            if ( class_exists( $adapter_class, false ) ) {
                 $provider = defined( 'WP_MCP_DIR' ) ? 'official-plugin' : 'external-composer';
                 try {
                     $reflection = new ReflectionClass( $adapter_class );
@@ -57,6 +57,10 @@ if ( ! class_exists( 'SSP_Official_MCP_Adapter' ) ) {
                 return;
             }
 
+            // The newest settings core is loaded exactly once, so its package
+            // autoloader is also loaded exactly once. Register our package before
+            // asking for the class, allowing Jetpack Autoloader to select 0.5.0
+            // over an older copy bundled by WooCommerce or another plugin.
             $autoloader = __DIR__ . '/vendor/autoload_packages.php';
             if ( ! is_readable( $autoloader ) ) {
                 self::$status['message'] = __( 'The bundled MCP Adapter dependencies are missing.', 'super-speedy-settings' );
