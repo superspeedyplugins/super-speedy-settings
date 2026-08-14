@@ -43,7 +43,6 @@ class SuperSpeedy_MCP_Config {
      *     @type callable $effective_callback Optional. Computed "effective config" block for get-config.
      *     @type string[] $extra_abilities    Optional. Further ability names to advertise in get-config.
      *     @type string   $notes              Optional. Guidance string returned by get-config.
-     *     @type string   $tool_prefix        Optional. AI Engine tool prefix; defaults to slug with dashes as underscores.
      * }
      */
     public function __construct( array $args ) {
@@ -59,7 +58,6 @@ class SuperSpeedy_MCP_Config {
             'effective_callback' => null,
             'extra_abilities'    => array(),
             'notes'              => '',
-            'tool_prefix'        => '',
         ) );
 
         if ( '' === $this->args['slug'] || ! $this->args['fields']
@@ -70,12 +68,6 @@ class SuperSpeedy_MCP_Config {
         add_action( 'wp_abilities_api_categories_init', array( $this, 'register_category' ) );
         add_action( 'wp_abilities_api_init', array( $this, 'register_abilities' ) );
 
-        if ( class_exists( 'SSP_AI_Engine' ) ) {
-            SSP_AI_Engine::register_namespace(
-                $this->args['slug'],
-                '' !== $this->args['tool_prefix'] ? $this->args['tool_prefix'] : null
-            );
-        }
     }
 
     public function can_manage() {
@@ -285,8 +277,8 @@ class SuperSpeedy_MCP_Config {
     public function exec_update_config( $input = array() ) {
         $input    = is_array( $input ) ? $input : array();
         $settings = isset( $input['settings'] ) ? $input['settings'] : array();
-        // Transport tolerance: some clients (and, historically, AI Engine)
-        // deliver nested objects as JSON strings, sometimes double-encoded.
+        // Transport tolerance: some clients deliver nested objects as JSON
+        // strings, sometimes double-encoded.
         if ( is_string( $settings ) ) {
             $decoded = self::json_undouble( $settings );
             if ( is_array( $decoded ) ) {
@@ -385,8 +377,8 @@ class SuperSpeedy_MCP_Config {
      */
     protected function sanitise( array $field, $value ) {
         // TRANSPORT REPAIR FIRST, before any sanitiser sees the value: a list
-        // arriving as a (possibly double-) JSON-encoded string is an AI Engine
-        // transport shape, not caller intent. Doing this only in the `list`
+        // arriving as a (possibly double-) JSON-encoded string is a transport
+        // shape, not caller intent. Doing this only in the `list`
         // branch below meant a field declaring its own `sanitize` callable
         // bypassed the repair and rejected a perfectly good array.
         if ( 'list' === $field['type'] && is_string( $value ) ) {
@@ -463,8 +455,8 @@ class SuperSpeedy_MCP_Config {
 
             case 'list':
                 if ( is_string( $value ) ) {
-                    // Accept a (possibly double-) JSON-encoded array - the
-                    // known AI Engine transport shapes.
+                    // Accept a (possibly double-) JSON-encoded array from
+                    // clients which serialise nested tool arguments.
                     $decoded = self::json_undouble( $value );
                     if ( is_array( $decoded ) ) {
                         $value = $decoded;

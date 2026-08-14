@@ -14,7 +14,9 @@ jQuery(function($) {
         $generate.prop('disabled', true).text(superspeedy_mcp.generating);
         $.post(ajaxurl, {
             action: 'superspeedy_mcp_create_connection',
-            nonce: superspeedy_mcp.nonce
+            nonce: superspeedy_mcp.nonce,
+            allow_execute: $('#ssp-mcp-allow-execute').prop('checked') ? 1 : 0,
+            allow_install: $('#ssp-mcp-allow-install').prop('checked') ? 1 : 0
         }).done(function(response) {
             if (!response.success) {
                 showError(response.data && response.data.message);

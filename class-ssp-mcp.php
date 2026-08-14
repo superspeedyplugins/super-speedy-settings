@@ -98,6 +98,18 @@ class SSP_MCP {
             'delayed-image-import'      => array( 'name' => 'Delayed Image Import',      'file' => 'delayed-image-import/delayed-image-import.php' ),
             'fullscreen-typeform'       => array( 'name' => 'Fullscreen Typeform',       'file' => 'fullscreen-typeform/fullscreen-typeform.php' ),
             'super-speedy-chat'         => array( 'name' => 'Super Speedy Chat',         'file' => 'super-speedy-chat/super-speedy-chat.php' ),
+            'super-speedy-coming-soon'  => array( 'name' => 'Super Speedy Coming Soon Products', 'file' => 'super-speedy-coming-soon/super-speedy-coming-soon.php' ),
+            'super-speedy-comments'     => array( 'name' => 'Super Speedy Comments',     'file' => 'super-speedy-comments/super-speedy-comments.php' ),
+            'ssap-addon-country-based-prices' => array(
+                'name'     => 'Super Speedy AJAX Prices: Country Based Prices',
+                'file'     => 'ssap-addon-country-based-prices/ssap-addon-country-based-prices.php',
+                'requires' => array( 'super-speedy-ajax-prices' ),
+            ),
+            'super-speedy-archives'     => array(
+                'name'         => 'Super Speedy Archives',
+                'file'         => 'super-speedy-archives/super-speedy-archives.php',
+                'requires_any' => array( 'scalability-pro', 'super-speedy-filters' ),
+            ),
         );
         return (array) apply_filters( 'superspeedy_known_plugins', $known );
     }
@@ -125,12 +137,7 @@ class SSP_MCP {
         wp_register_ability( self::CATEGORY . '/get-licence-status', array_merge( $read, array(
             'label'               => __( 'Check the licence', 'super-speedy-settings' ),
             'description'         => __( 'Whether this site has a Super Speedy licence key entered and what it covers. If no licence is present, nothing can be installed and a human has to enter the key once on the Super Speedy Plugins settings screen.', 'super-speedy-settings' ),
-            'input_schema'        => array(
-                'type'                 => 'object',
-                'additionalProperties' => false,
-                'properties'           => array( 'slug' => array( 'type' => 'string' ) ),
-                'default'              => array(),
-            ),
+            'input_schema'        => array( 'type' => 'object', 'additionalProperties' => false, 'default' => array() ),
             'output_schema'       => array( 'type' => 'object' ),
             'permission_callback' => array( __CLASS__, 'can_read' ),
             'execute_callback'    => array( __CLASS__, 'exec_licence_status' ),
@@ -139,12 +146,9 @@ class SSP_MCP {
         wp_register_ability( self::CATEGORY . '/install-plugin', array(
             'category'            => self::CATEGORY,
             'meta'                => array(
-                'annotations'  => array( 'readonly' => false, 'destructive' => false, 'idempotent' => true ),
+                'annotations'  => array( 'readonly' => false, 'destructive' => true, 'idempotent' => true ),
                 'show_in_rest' => true,
                 'mcp'          => array( 'public' => true, 'type' => 'tool' ),
-                // Installing code warrants AI Engine's admin connection role even
-                // though the ability is not annotated destructive (it is reversible).
-                'ai_engine'    => array( 'accessLevel' => 'admin' ),
             ),
             'label'               => __( 'Install a Super Speedy plugin', 'super-speedy-settings' ),
             'description'         => __( 'Install, and optionally activate, one of the Super Speedy plugins using this site\'s own licence. You pass only the plugin slug — the download is resolved from the licensed update server, never from a URL you supply. Requires confirm=true. Use list-plugins to see the available slugs. If the plugin is already installed this reports that and changes nothing.', 'super-speedy-settings' ),
@@ -172,6 +176,22 @@ class SSP_MCP {
             'permission_callback' => array( __CLASS__, 'can_read' ),
             'execute_callback'    => array( __CLASS__, 'exec_list_log' ),
         ) ) );
+
+        wp_register_ability( self::CATEGORY . '/list-permitted-abilities', array_merge( $read, array(
+            'label'               => __( 'List permitted Super Speedy abilities', 'super-speedy-settings' ),
+            'description'         => __( 'Machine-readable manifest used by the shared MCP bridge. Returns only public abilities which the authenticated user is permitted to execute. Human workflows should normally use the MCP tools list instead.', 'super-speedy-settings' ),
+            'input_schema'        => array( 'type' => 'object', 'additionalProperties' => false, 'default' => array() ),
+            'output_schema'       => array(
+                'type'       => 'object',
+                'properties' => array(
+                    'total'     => array( 'type' => 'integer' ),
+                    'abilities' => array( 'type' => 'array', 'items' => array( 'type' => 'string' ) ),
+                ),
+                'required'   => array( 'total', 'abilities' ),
+            ),
+            'permission_callback' => array( __CLASS__, 'can_read' ),
+            'execute_callback'    => array( __CLASS__, 'exec_list_permitted_abilities' ),
+        ) ) );
     }
 
     /* --------------------------------------------------------------------- */
@@ -192,6 +212,8 @@ class SSP_MCP {
                 'installed' => $is_installed,
                 'active'    => in_array( $info['file'], $active, true ),
                 'version'   => $is_installed ? $installed[ $info['file'] ]['Version'] : null,
+                'requires'  => isset( $info['requires'] ) ? array_values( $info['requires'] ) : array(),
+                'requires_any' => isset( $info['requires_any'] ) ? array_values( $info['requires_any'] ) : array(),
             );
         }
 
@@ -385,6 +407,22 @@ class SSP_MCP {
             $log = array();
         }
         return array( 'total' => count( $log ), 'installs' => array_reverse( $log ) );
+    }
+
+    public static function exec_list_permitted_abilities() {
+        $names = array();
+        foreach ( wp_get_abilities() as $ability ) {
+            $mcp = $ability->get_meta_item( 'mcp', array() );
+            if ( ! is_array( $mcp ) || empty( $mcp['public'] ) ) {
+                continue;
+            }
+            $permitted = $ability->check_permissions( array() );
+            if ( true === $permitted ) {
+                $names[] = $ability->get_name();
+            }
+        }
+        sort( $names, SORT_STRING );
+        return array( 'total' => count( $names ), 'abilities' => $names );
     }
 }
 

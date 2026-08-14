@@ -18,14 +18,6 @@ if (!defined('ABSPATH')) { return; }
 require_once __DIR__ . '/abstract-class-super-speedy-settings.php';
 require_once __DIR__ . '/plugin-update-checker/plugin-update-checker.php';
 
-// Use the official WordPress MCP Adapter. An already-loaded standalone plugin
-// or Composer copy wins; otherwise the bundled package is loaded through the
-// Jetpack Autoloader recommended by the adapter project.
-if ( file_exists( __DIR__ . '/class-ssp-official-mcp-adapter.php' ) ) {
-    require_once __DIR__ . '/class-ssp-official-mcp-adapter.php';
-    SSP_Official_MCP_Adapter::bootstrap();
-}
-
 // Shared `ssp` ability surface (licence status, and installing the rest of the range
 // from this site's own licence). Lives here so one implementation reaches every Super
 // Speedy plugin on its next settings sync; SSP_MCP::init() guards against the nine
@@ -34,16 +26,6 @@ if ( file_exists( __DIR__ . '/class-ssp-mcp.php' ) ) {
     require_once __DIR__ . '/class-ssp-mcp.php';
     if ( function_exists( 'wp_register_ability' ) && class_exists( 'SSP_MCP' ) ) {
         SSP_MCP::init();
-    }
-}
-// AI Engine aliases (SSP_AI_Engine): mirrors the ssp abilities - and any plugin
-// namespace registered with it - onto AI Engine's MCP endpoint. Pure filters, so
-// inert unless AI Engine is active. Must load BEFORE plugins instantiate
-// SuperSpeedy_MCP_Config, which registers its namespace with the adapter.
-if ( file_exists( __DIR__ . '/class-ssp-ai-engine.php' ) ) {
-    require_once __DIR__ . '/class-ssp-ai-engine.php';
-    if ( function_exists( 'wp_register_ability' ) && class_exists( 'SSP_AI_Engine' ) ) {
-        SSP_AI_Engine::init();
     }
 }
 // Shared config base (SuperSpeedy_MCP_Config): opt-in <slug>/get-config +
@@ -65,7 +47,7 @@ if (!class_exists('SuperSpeedySettingsCore')) {
         // &sv= (distinct from a plugin's own build, sent as v=). Lets auth see which
         // sites run stale settings code (e.g. still checking www, or missing a param).
         // Bump this whenever the settings code changes in a way worth tracking.
-        const SETTINGS_VERSION = '1.6.1';
+        const SETTINGS_VERSION = '1.7.0';
         private $update_checkers = array();
         
         
