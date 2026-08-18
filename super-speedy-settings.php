@@ -75,5 +75,5 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
 // serving the site and this copy must stay silent.
 if (defined('SuperSpeedySettings_1_0::SSP_REGISTRY_FACADE')) {
     // Keep this literal in sync with SuperSpeedySettingsCore::SETTINGS_VERSION.
-    $GLOBALS['ssp_settings_candidates']['1.7.0'] = __DIR__;
+    $GLOBALS['ssp_settings_candidates']['1.8.0'] = __DIR__;
 }

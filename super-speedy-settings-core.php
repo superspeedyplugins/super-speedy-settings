@@ -18,6 +18,14 @@ if (!defined('ABSPATH')) { return; }
 require_once __DIR__ . '/abstract-class-super-speedy-settings.php';
 require_once __DIR__ . '/plugin-update-checker/plugin-update-checker.php';
 
+// Use the official WordPress MCP Adapter. An already-loaded standalone plugin
+// or Composer copy wins; otherwise load the bundled package through Jetpack's
+// shared-package autoloader.
+if ( file_exists( __DIR__ . '/class-ssp-official-mcp-adapter.php' ) ) {
+    require_once __DIR__ . '/class-ssp-official-mcp-adapter.php';
+    SSP_Official_MCP_Adapter::bootstrap();
+}
+
 // Shared `ssp` ability surface (licence status, and installing the rest of the range
 // from this site's own licence). Lives here so one implementation reaches every Super
 // Speedy plugin on its next settings sync; SSP_MCP::init() guards against the nine
@@ -47,7 +55,7 @@ if (!class_exists('SuperSpeedySettingsCore')) {
         // &sv= (distinct from a plugin's own build, sent as v=). Lets auth see which
         // sites run stale settings code (e.g. still checking www, or missing a param).
         // Bump this whenever the settings code changes in a way worth tracking.
-        const SETTINGS_VERSION = '1.7.0';
+        const SETTINGS_VERSION = '1.8.0';
         private $update_checkers = array();
         
         
