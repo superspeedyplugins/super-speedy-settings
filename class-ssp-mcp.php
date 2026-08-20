@@ -309,6 +309,10 @@ class SSP_MCP {
             return new WP_Error( 'ssp_confirm_required', __( 'This installs code on the site. Call again with confirm=true.', 'super-speedy-settings' ), array( 'status' => 400 ) );
         }
 
+        if ( ! current_user_can( 'install_plugins' ) || ( $activate && ! current_user_can( 'activate_plugins' ) ) ) {
+            return new WP_Error( 'ssp_install_forbidden', __( 'This account does not have WordPress permission to install and activate plugins.', 'super-speedy-settings' ), array( 'status' => 403 ) );
+        }
+
         $known = self::known_plugins();
         if ( $slug === '' || ! isset( $known[ $slug ] ) ) {
             return new WP_Error( 'ssp_unknown_plugin', __( 'Unknown plugin slug. Call list-plugins for the valid ones.', 'super-speedy-settings' ), array( 'status' => 400 ) );
@@ -349,7 +353,12 @@ class SSP_MCP {
 
         $skin     = new WP_Ajax_Upgrader_Skin();
         $upgrader = new Plugin_Upgrader( $skin );
-        $outcome  = $upgrader->install( $url );
+        add_filter( 'http_request_args', array( __CLASS__, 'prevent_install_redirects' ), 10, 2 );
+        try {
+            $outcome = $upgrader->install( $url );
+        } finally {
+            remove_filter( 'http_request_args', array( __CLASS__, 'prevent_install_redirects' ), 10 );
+        }
 
         if ( is_wp_error( $outcome ) ) {
             return new WP_Error( 'ssp_install_failed', $outcome->get_error_message() );
@@ -380,6 +389,15 @@ class SSP_MCP {
             'activation_error' => $activation_error,
             'notes'            => __( 'Installed from the licensed update server. Check list-plugins to confirm, and see list-install-log for the audit trail.', 'super-speedy-settings' ),
         );
+    }
+
+    /** Do not let an approved package URL redirect to an unapproved host. */
+    public static function prevent_install_redirects( $args, $url ) {
+        $host = wp_parse_url( $url, PHP_URL_HOST );
+        if ( in_array( $host, self::allowed_hosts(), true ) ) {
+            $args['redirection'] = 0;
+        }
+        return $args;
     }
 
     protected static function log_install( $slug, $activated ) {

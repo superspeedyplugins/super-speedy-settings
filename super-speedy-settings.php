@@ -52,6 +52,28 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
     }
 
     if (!function_exists('ssp_settings_load_newest')) {
+        /** Only load candidates installed beneath a WordPress plugin root. */
+        function ssp_settings_candidate_is_allowed($dir) {
+            $candidate = realpath($dir);
+            if ($candidate === false) {
+                return false;
+            }
+            $roots = array(WP_PLUGIN_DIR, WPMU_PLUGIN_DIR);
+            foreach (array(WP_PLUGIN_DIR, WPMU_PLUGIN_DIR) as $plugin_root) {
+                $installed = glob($plugin_root . '/*', GLOB_ONLYDIR);
+                if (is_array($installed)) {
+                    $roots = array_merge($roots, $installed);
+                }
+            }
+            foreach ($roots as $root) {
+                $root = realpath($root);
+                if ($root !== false && ($candidate === $root || strpos($candidate, $root . DIRECTORY_SEPARATOR) === 0)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         /** Load the newest registered copy's core; fall back down the list if a copy is mid-update. */
         function ssp_settings_load_newest() {
             $candidates = isset($GLOBALS['ssp_settings_candidates']) && is_array($GLOBALS['ssp_settings_candidates'])
@@ -59,6 +81,9 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
                 : array();
             uksort($candidates, 'version_compare');
             foreach (array_reverse($candidates, true) as $dir) {
+                if (!ssp_settings_candidate_is_allowed($dir)) {
+                    continue;
+                }
                 $core = $dir . '/super-speedy-settings-core.php';
                 if (is_file($core)) {
                     require_once $core;
@@ -75,5 +100,5 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
 // serving the site and this copy must stay silent.
 if (defined('SuperSpeedySettings_1_0::SSP_REGISTRY_FACADE')) {
     // Keep this literal in sync with SuperSpeedySettingsCore::SETTINGS_VERSION.
-    $GLOBALS['ssp_settings_candidates']['1.8.0'] = __DIR__;
+    $GLOBALS['ssp_settings_candidates']['1.8.1'] = __DIR__;
 }
