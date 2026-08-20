@@ -55,7 +55,7 @@ if (!class_exists('SuperSpeedySettingsCore')) {
         // &sv= (distinct from a plugin's own build, sent as v=). Lets auth see which
         // sites run stale settings code (e.g. still checking www, or missing a param).
         // Bump this whenever the settings code changes in a way worth tracking.
-        const SETTINGS_VERSION = '1.8.1';
+        const SETTINGS_VERSION = '1.8.2';
         private $update_checkers = array();
         
         
@@ -483,29 +483,30 @@ if (!class_exists('SuperSpeedySettingsCore')) {
 //                if ($homeurl == "https://localhost") {
 //                    $keycheckurl = 'https://localhost/wp-json/wpiapi/check_product_key/' . $encoded_licensekey . '/' . $slug . '/' . $parsedurl['host'] . '/';
 //                }
-                $curl = curl_init();
-                curl_setopt($curl, CURLOPT_URL, $keycheckurl);
-                curl_setopt($curl, CURLOPT_RETURNTRANSFER, TRUE);
-                curl_setopt($curl, CURLOPT_HEADER, FALSE);
                 // Issue #165: a challenged/unreachable server must not hang the
                 // settings page. 60s here meant up to a minute PER PLUGIN when
                 // the auth server could not be reached; fail fast instead - the
                 // result is cached either way and the next visit retries.
-                curl_setopt($curl, CURLOPT_CONNECTTIMEOUT, 10);
-                curl_setopt($curl, CURLOPT_TIMEOUT, 15);
-    
-                curl_setopt($curl, CURLOPT_HTTPHEADER, array(
-                "Accept: application/json", 
-                "Cache-Control: no-cache"
+                $keycheckresponse = wp_safe_remote_get($keycheckurl, array(
+                    'timeout' => 15,
+                    'redirection' => 0,
+                    'headers' => array(
+                        'Accept' => 'application/json',
+                        'Cache-Control' => 'no-cache',
+                    ),
                 ));
-                $keycheckdata = curl_exec($curl);
                 // Issue #267: remember when we last actually phoned home, so the
                 // settings page can show it next to the frequency choice.
                 update_option('superspeedy_last_check', time(), false);
 
-                //echo "<pre>" . print_r($keycheckdata, true) . "</pre>";
-    
-                $api_resp = json_decode($keycheckdata);
+                if (is_wp_error($keycheckresponse)) {
+                    $api_resp = (object) array('error' => $keycheckresponse->get_error_message());
+                } else {
+                    $api_resp = json_decode(wp_remote_retrieve_body($keycheckresponse));
+                    if (!is_object($api_resp)) {
+                        $api_resp = (object) array('error' => 'License server returned an invalid response.');
+                    }
+                }
         //        echo "<pre>" . print_r($api_resp, true) . "</pre>";
     
         //        $api_resp = array('activated' => true, 'error' => 'No message');

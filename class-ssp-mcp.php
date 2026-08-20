@@ -56,8 +56,14 @@ class SSP_MCP {
         $done = true;
 
         add_filter( 'user_has_cap', array( __CLASS__, 'grant_implicit_caps' ), 10, 1 );
+        add_filter( 'mcp_adapter_default_transport_permission_user_capability', array( __CLASS__, 'adapter_access_capability' ), 10, 1 );
+        add_filter( 'mcp_adapter_discover_abilities_capability', array( __CLASS__, 'adapter_access_capability' ), 10, 1 );
         add_action( 'wp_abilities_api_categories_init', array( __CLASS__, 'register_category' ) );
         add_action( 'wp_abilities_api_init', array( __CLASS__, 'register_abilities' ) );
+    }
+
+    public static function adapter_access_capability( $capability ) {
+        return self::CAP_MANAGE;
     }
 
     public static function grant_implicit_caps( $allcaps ) {
