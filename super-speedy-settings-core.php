@@ -16,7 +16,9 @@
 if (!defined('ABSPATH')) { return; }
 
 require_once __DIR__ . '/abstract-class-super-speedy-settings.php';
-require_once __DIR__ . '/plugin-update-checker/plugin-update-checker.php';
+if ( is_admin() ) {
+    require_once __DIR__ . '/plugin-update-checker/plugin-update-checker.php';
+}
 
 if ( ! function_exists( 'superspeedy_mcp_enabled' ) ) {
     /** MCP is an explicit site-admin opt-in. */
@@ -66,19 +68,22 @@ if (!class_exists('SuperSpeedySettingsCore')) {
         // &sv= (distinct from a plugin's own build, sent as v=). Lets auth see which
         // sites run stale settings code (e.g. still checking www, or missing a param).
         // Bump this whenever the settings code changes in a way worth tracking.
-        const SETTINGS_VERSION = '1.8.3';
+        const SETTINGS_VERSION = '1.8.4';
         private $update_checkers = array();
         
         
         public function register_menu() {
             $superspeedy_licenses = $this->getLicenses();
             $total_changes = 0;
-            // Iterate over licenses array and count total changes
-            foreach ($superspeedy_licenses as $slug => $ssp_license) {
-                if (isset($ssp_license['version'])) { // checks if the plugin is active
-                    $changes = $this->get_changes_since_version($slug, $ssp_license['version']);
-                    if ($changes) {
-                        $total_changes += $changes['count'];
+            // Changelog HTTP requests are only relevant on our settings screen
+            // and the Plugins list. Other wp-admin screens get a plain menu title.
+            if ( $this->should_fetch_changelogs() ) {
+                foreach ($superspeedy_licenses as $slug => $ssp_license) {
+                    if (isset($ssp_license['version'])) { // checks if the plugin is active
+                        $changes = $this->get_changes_since_version($slug, $ssp_license['version']);
+                        if ($changes) {
+                            $total_changes += $changes['count'];
+                        }
                     }
                 }
             }
@@ -170,11 +175,43 @@ if (!class_exists('SuperSpeedySettingsCore')) {
         public function setup() {
             // call parent setup
             parent::setup();
-            $this->ssp_initialize_updaters();
+            if ( is_admin() ) {
+                $this->ssp_initialize_updaters();
+            }
             add_action( 'admin_init', array($this, 'settings_init') );
             add_action('wp_error_added', array($this, 'handle_wp_error_added'), 10, 4);
             add_action( 'admin_enqueue_scripts', array($this, 'enqueue_admin_script'));
             add_action('wp_ajax_superspeedy_recheck_license', array($this, 'handle_recheck_license'));
+            add_action('updated_option', array($this, 'keep_shared_options_out_of_autoload'), 10, 1);
+            $this->ensure_options_not_autoloaded();
+        }
+        public function keep_shared_options_out_of_autoload( $option ) {
+            if ( 'superspeedy_options' === $option ) {
+                $this->ensure_options_not_autoloaded();
+            }
+        }
+        public function ensure_options_not_autoloaded() {
+            if ( function_exists( 'wp_set_option_autoload_values' ) ) {
+                wp_set_option_autoload_values( array( 'superspeedy_options' => false ) );
+                return;
+            }
+            global $wpdb;
+            $wpdb->update(
+                $wpdb->options,
+                array( 'autoload' => 'no' ),
+                array( 'option_name' => 'superspeedy_options' ),
+                array( '%s' ),
+                array( '%s' )
+            );
+        }
+        public function should_fetch_changelogs() {
+            global $pagenow;
+            if ( 'plugins.php' === $pagenow ) {
+                return true;
+            }
+            return 'admin.php' === $pagenow
+                && isset( $_GET['page'] )
+                && 'superspeedy' === sanitize_key( wp_unslash( $_GET['page'] ) );
         }
         function ssp_initialize_updaters() {    
             $superspeedy_licenses = $this->getLicenses(); // Get the global licenses
@@ -485,15 +522,11 @@ if (!class_exists('SuperSpeedySettingsCore')) {
             $homeurl = get_home_url();
             $parsedurl = parse_url($homeurl);
             if (isset($parsedurl['host']) && !empty($parsedurl['host']) && isset($options['superspeedy_field_licensekey']) && !empty($options['superspeedy_field_licensekey']) && !empty($slug)) {
-                $encoded_licensekey = urlencode($options['superspeedy_field_licensekey']);
-
                 // Licence checks go DIRECT to the auth server. www has no route for
                 // this path and returns rest_no_route (404); new clients hit auth.
-                $keycheckurl = 'https://auth.superspeedyplugins.com/wp-json/wpiapi/check_product_key/' . $encoded_licensekey . '/' . $slug . '/' . $parsedurl['host'] . '/';
-                // Report the installed version (v=) so the server can track which build
-                // each site runs, the site admin email (email=, stored server-side in a
-                // SEPARATE field - NOT a known customer), and the shared settings-code
-                // version (sv=). Harmless query params; older servers ignore them.
+                $keycheckurl = 'https://auth.superspeedyplugins.com/wp-json/wpiapi/check_product_key/';
+                // Report the installed version (v=) and shared settings-code version
+                // (sv=) in the POST body. force=1 bypasses the server cache.
                 // force=1 bypasses the server cache.
                 $ssp_qs = array();
                 if ($force) {
@@ -504,9 +537,6 @@ if (!class_exists('SuperSpeedySettingsCore')) {
                     $ssp_qs['v'] = (string) $ssp_licenses[$slug]['version'];
                 }
                 $ssp_qs['sv'] = self::SETTINGS_VERSION;
-                if (!empty($ssp_qs)) {
-                    $keycheckurl .= '?' . http_build_query($ssp_qs);
-                }
 //                if ($homeurl == "https://localhost") {
 //                    $keycheckurl = 'https://localhost/wp-json/wpiapi/check_product_key/' . $encoded_licensekey . '/' . $slug . '/' . $parsedurl['host'] . '/';
 //                }
@@ -514,12 +544,20 @@ if (!class_exists('SuperSpeedySettingsCore')) {
                 // settings page. 60s here meant up to a minute PER PLUGIN when
                 // the auth server could not be reached; fail fast instead - the
                 // result is cached either way and the next visit retries.
-                $keycheckresponse = wp_safe_remote_get($keycheckurl, array(
+                $keycheckresponse = wp_safe_remote_post($keycheckurl, array(
                     'timeout' => 15,
                     'redirection' => 0,
                     'headers' => array(
                         'Accept' => 'application/json',
                         'Cache-Control' => 'no-cache',
+                    ),
+                    'body' => array(
+                        'key'           => (string) $options['superspeedy_field_licensekey'],
+                        'wpiplugin'     => (string) $slug,
+                        'licensedomain' => (string) $parsedurl['host'],
+                        'force'         => !empty($ssp_qs['force']) ? 1 : 0,
+                        'v'             => isset($ssp_qs['v']) ? $ssp_qs['v'] : '',
+                        'sv'            => $ssp_qs['sv'],
                     ),
                 ));
                 // Issue #267: remember when we last actually phoned home, so the
@@ -642,7 +680,7 @@ if (!class_exists('SuperSpeedySettingsCore')) {
             // a non-200 (e.g. a Cloudflare challenge page) is NOT a WP_Error but
             // its HTML body must not be parsed as a readme - treat it as a
             // failed check too.
-            if (is_wp_error($response) || (int) wp_remote_retrieve_response_code($response) !== 200) {
+            if (!$this->is_valid_changelog_response($response)) {
                 $result = ["count" => 0, "changes" => 0];
                 // Store failed retrieval for 1 hour
                 set_transient($transient_key, $result, $this->check_ttl(1 * HOUR_IN_SECONDS));
@@ -671,21 +709,13 @@ if (!class_exists('SuperSpeedySettingsCore')) {
                 // Check if the line is a version line
                 if (strpos($line, '=') === 0 && strpos($line, '==') !== 0) {
                     // Extract the version number from the line
-                    preg_match("/\d+\.\d+/", $line, $matches);
+                    preg_match('/\d+(?:\.\d+)+(?:[-+][0-9A-Za-z.-]+)?/', $line, $matches);
                     $line_version = $matches[0] ?? null;
-    
-                    try {
-                        // Try to cast versions to floats and perform comparison
-                        $line_version_float = (float)$line_version;
-                        $version_float = (float)$version;
-                    
-                        // If any of the versions couldn't be converted to a float, exception will be thrown and this line won't be executed
-                        if ($line_version_float <= $version_float) {
-                            break;
-                        }
-                    } catch (Exception $e) {
-                        // An error occurred while converting the versions to floats, ignore and continue
+                    if ( null === $line_version ) {
                         continue;
+                    }
+                    if ( version_compare( $line_version, (string) $version, '<=' ) ) {
+                        break;
                     }
                     
                     // Start recording changes if we've passed the version in the changelog
@@ -706,6 +736,10 @@ if (!class_exists('SuperSpeedySettingsCore')) {
             return $result;
         }
         function get_changes_since_days($plugin, $days) {
+            $days = absint( $days );
+            if ( $days < 1 ) {
+                return false;
+            }
                 // Check if data is already in the cache
             $transient_key = 'superspeedy_changes_days_' . $plugin . '_' . $days;
             if (($changes = get_transient($transient_key)) !== false) {
@@ -716,7 +750,7 @@ if (!class_exists('SuperSpeedySettingsCore')) {
 
             // Check if there was an error in retrieving the content (issue #165:
             // non-200 challenge pages count as failure, same as above)
-            if (is_wp_error($response) || (int) wp_remote_retrieve_response_code($response) !== 200) {
+            if (!$this->is_valid_changelog_response($response)) {
                 return false; // failed to check for updates
             }
 
@@ -729,8 +763,8 @@ if (!class_exists('SuperSpeedySettingsCore')) {
             $record = false;
 
             // Calculate the date X days ago
-            $date_x_days_ago = new DateTime();
-            $date_x_days_ago->sub(new DateInterval("P{$days}D"));
+            $date_x_days_ago = new DateTimeImmutable( 'today', wp_timezone() );
+            $date_x_days_ago = $date_x_days_ago->sub(new DateInterval("P{$days}D"));
 
             // Skip the early lines to only look at the changelog
             $changelog_position = array_search("== Changelog ==", $lines);
@@ -746,10 +780,14 @@ if (!class_exists('SuperSpeedySettingsCore')) {
                 // Check if the line is a version line
                 if (strpos($line, '=') === 0 && strpos($line, '==') !== 0) {
                     // Extract the date from the line
-                    $date_start = strpos($line, '(') + 1;
-                    $date_length = strpos($line, ')') - $date_start;
-                    $line_date_str = substr($line, $date_start, $date_length);
-                    $line_date = DateTime::createFromFormat('dS F Y', $line_date_str);
+                    if ( ! preg_match( '/\((\d{1,2}(?:st|nd|rd|th) [A-Za-z]+ \d{4})\)/', $line, $date_match ) ) {
+                        continue;
+                    }
+                    $line_date = DateTimeImmutable::createFromFormat( '!jS F Y', $date_match[1], wp_timezone() );
+                    $date_errors = DateTimeImmutable::getLastErrors();
+                    if ( false === $line_date || ( is_array( $date_errors ) && ( $date_errors['warning_count'] || $date_errors['error_count'] ) ) ) {
+                        continue;
+                    }
 
                     // If we've reached a date that is X days ago or more, stop recording changes
                     if ($line_date < $date_x_days_ago) {
@@ -795,6 +833,23 @@ if (!class_exists('SuperSpeedySettingsCore')) {
         
             return $response;
         }
+        public function is_valid_changelog_response( $response ) {
+            if ( ! is_array( $response ) || is_wp_error( $response ) ) {
+                return false;
+            }
+            if ( 200 !== (int) wp_remote_retrieve_response_code( $response ) ) {
+                return false;
+            }
+            $body = wp_remote_retrieve_body( $response );
+            if ( ! is_string( $body ) || '' === trim( $body ) || strlen( $body ) > 2 * MB_IN_BYTES ) {
+                return false;
+            }
+            $content_type = strtolower( (string) wp_remote_retrieve_header( $response, 'content-type' ) );
+            if ( false !== strpos( $content_type, 'text/html' ) ) {
+                return false;
+            }
+            return true;
+        }
         public function handle_wp_error_added($code, $message, $data, $object) {
             // Only act on array data carrying a JSON body.
             if (!is_array($data) || !isset($data['body']) || !is_string($data['body'])) {
@@ -820,7 +875,7 @@ if (!class_exists('SuperSpeedySettingsCore')) {
                 return;
             }
 
-            $clean_message = $json->message;
+            $clean_message = esc_html( wp_strip_all_tags( (string) $json->message ) );
             $settings_url = admin_url('admin.php?page=superspeedy');
             $clean_message .= ' <a href="' . esc_url($settings_url) . '">Go to Super Speedy Settings to enter your license key</a>.';
 
@@ -832,15 +887,15 @@ if (!class_exists('SuperSpeedySettingsCore')) {
             add_action('wp_error_added', array($this, 'handle_wp_error_added'), 10, 4);
         }
         public function enqueue_admin_script( $hook ) {
-            wp_enqueue_script('super_speedy_updates', plugin_dir_url(__FILE__) . 'super-speedy-updates.js', array('jquery'), time(), true);
+            wp_enqueue_script('super_speedy_updates', plugin_dir_url(__FILE__) . 'super-speedy-updates.js', array('jquery'), filemtime(__DIR__ . '/super-speedy-updates.js'), true);
             // add super-speedy-settings/admin.css to the admin page but ONLY on our admin page
             if ($hook == 'toplevel_page_superspeedy' || $hook == 'super-speedy_page_superspeedy-mcp-setup') {
                 // Atlas icon packs for the service panels - bundled locally (no external requests).
                 foreach (array('basic-ui', 'school', 'arrow') as $ssp_pack) {
                     wp_enqueue_style('ssp-atlas-' . $ssp_pack, plugin_dir_url(__FILE__) . 'packs/' . $ssp_pack . '/style.css', array(), '1.0.0');
                 }
-                wp_enqueue_style('super_speedy_admin', plugin_dir_url(__FILE__) . 'admin.css', array(), time());
-                wp_enqueue_script('super_speedy_settings', plugin_dir_url(__FILE__) . 'super-speedy-settings.js', array('jquery'), time(), true);
+                wp_enqueue_style('super_speedy_admin', plugin_dir_url(__FILE__) . 'admin.css', array(), filemtime(__DIR__ . '/admin.css'));
+                wp_enqueue_script('super_speedy_settings', plugin_dir_url(__FILE__) . 'super-speedy-settings.js', array('jquery'), filemtime(__DIR__ . '/super-speedy-settings.js'), true);
                 wp_localize_script('super_speedy_settings', 'superspeedy_ajax', array(
                     'nonce' => wp_create_nonce('superspeedy_recheck_license')
                 ));

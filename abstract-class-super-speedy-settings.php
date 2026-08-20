@@ -104,9 +104,9 @@ if (!class_exists('SuperSpeedySettings')) {
                 'super_speedy_context_help_js', 
                 plugins_url( 'context-help.js',__FILE__ ), 
                 array('jquery'), 
-                time()
+                filemtime(__DIR__ . '/context-help.js')
             );
-            wp_enqueue_style('super_speedy_context_help', plugins_url('context-help.css', __FILE__), null, time());
+            wp_enqueue_style('super_speedy_context_help', plugins_url('context-help.css', __FILE__), null, filemtime(__DIR__ . '/context-help.css'));
         }
     }
 }
