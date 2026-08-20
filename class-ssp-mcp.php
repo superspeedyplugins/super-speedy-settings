@@ -300,7 +300,6 @@ class SSP_MCP {
                 'domain'          => $domain,
                 'license_version' => 2,
                 'sv'              => class_exists( 'SuperSpeedySettingsCore' ) ? SuperSpeedySettingsCore::SETTINGS_VERSION : '',
-                'email'           => get_option( 'admin_email' ),
             ), $url );
         }
 

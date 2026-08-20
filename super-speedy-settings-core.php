@@ -18,10 +18,20 @@ if (!defined('ABSPATH')) { return; }
 require_once __DIR__ . '/abstract-class-super-speedy-settings.php';
 require_once __DIR__ . '/plugin-update-checker/plugin-update-checker.php';
 
+if ( ! function_exists( 'superspeedy_mcp_enabled' ) ) {
+    /** MCP is an explicit site-admin opt-in. */
+    function superspeedy_mcp_enabled() {
+        $options = get_option( 'superspeedy_options', array() );
+        return is_array( $options )
+            && isset( $options['superspeedy_field_mcp_enabled'] )
+            && '1' === (string) $options['superspeedy_field_mcp_enabled'];
+    }
+}
+
 // Use the official WordPress MCP Adapter. An already-loaded standalone plugin
 // or Composer copy wins; otherwise load the bundled package through Jetpack's
 // shared-package autoloader.
-if ( file_exists( __DIR__ . '/class-ssp-official-mcp-adapter.php' ) ) {
+if ( superspeedy_mcp_enabled() && file_exists( __DIR__ . '/class-ssp-official-mcp-adapter.php' ) ) {
     require_once __DIR__ . '/class-ssp-official-mcp-adapter.php';
     SSP_Official_MCP_Adapter::bootstrap();
 }
@@ -30,7 +40,7 @@ if ( file_exists( __DIR__ . '/class-ssp-official-mcp-adapter.php' ) ) {
 // from this site's own licence). Lives here so one implementation reaches every Super
 // Speedy plugin on its next settings sync; SSP_MCP::init() guards against the nine
 // copies registering nine times. Version-gated on the core Abilities API.
-if ( file_exists( __DIR__ . '/class-ssp-mcp.php' ) ) {
+if ( superspeedy_mcp_enabled() && file_exists( __DIR__ . '/class-ssp-mcp.php' ) ) {
     require_once __DIR__ . '/class-ssp-mcp.php';
     if ( function_exists( 'wp_register_ability' ) && class_exists( 'SSP_MCP' ) ) {
         SSP_MCP::init();
@@ -39,11 +49,12 @@ if ( file_exists( __DIR__ . '/class-ssp-mcp.php' ) ) {
 // Shared config base (SuperSpeedy_MCP_Config): opt-in <slug>/get-config +
 // <slug>/update-config for any plugin that instantiates it with its settings
 // registry. Defining the class activates nothing by itself.
-if ( file_exists( __DIR__ . '/class-superspeedy-mcp-config.php' )
+if ( superspeedy_mcp_enabled()
+    && file_exists( __DIR__ . '/class-superspeedy-mcp-config.php' )
     && function_exists( 'wp_register_ability' ) ) {
     require_once __DIR__ . '/class-superspeedy-mcp-config.php';
 }
-if ( file_exists( __DIR__ . '/class-ssp-mcp-setup.php' ) ) {
+if ( superspeedy_mcp_enabled() && file_exists( __DIR__ . '/class-ssp-mcp-setup.php' ) ) {
     require_once __DIR__ . '/class-ssp-mcp-setup.php';
     SSP_MCP_Setup::init();
 }
@@ -55,7 +66,7 @@ if (!class_exists('SuperSpeedySettingsCore')) {
         // &sv= (distinct from a plugin's own build, sent as v=). Lets auth see which
         // sites run stale settings code (e.g. still checking www, or missing a param).
         // Bump this whenever the settings code changes in a way worth tracking.
-        const SETTINGS_VERSION = '1.8.2';
+        const SETTINGS_VERSION = '1.8.3';
         private $update_checkers = array();
         
         
@@ -217,6 +228,7 @@ if (!class_exists('SuperSpeedySettingsCore')) {
             wp_send_json_success();
         }
         public function settings_validate_and_save( $input ) {
+            $input = is_array($input) ? $input : array();
             // If the license key was changed, delete the license cache
             $options = get_option('superspeedy_options');
             if (!$options || 
@@ -228,6 +240,7 @@ if (!class_exists('SuperSpeedySettingsCore')) {
         
             // Sanitize and validate the input as needed before saving
             $new_input = array_map('sanitize_text_field', $input);
+            $new_input['superspeedy_field_mcp_enabled'] = !empty($input['superspeedy_field_mcp_enabled']) ? '1' : '0';
         
             return $new_input;
         }
@@ -268,6 +281,24 @@ if (!class_exists('SuperSpeedySettingsCore')) {
                     'class'     => 'superspeedy_row',
                 )
             );
+
+            add_settings_field(
+                'superspeedy_field_mcp_enabled',
+                __( 'MCP access', 'superspeedy' ),
+                array($this, 'field_mcp_enabled_cb'),
+                'superspeedy',
+                'superspeedy_section_license',
+                array(
+                    'label_for' => 'superspeedy_field_mcp_enabled',
+                    'class' => 'superspeedy_row',
+                )
+            );
+        }
+        public function field_mcp_enabled_cb( $args ) {
+            $options = get_option( 'superspeedy_options', array() );
+            $enabled = is_array($options) && isset($options[ $args['label_for'] ]) && '1' === (string) $options[ $args['label_for'] ];
+            echo '<label><input type="checkbox" id="' . esc_attr($args['label_for']) . '" name="superspeedy_options[' . esc_attr($args['label_for']) . ']" value="1"' . checked($enabled, true, false) . '> ' . esc_html__( 'Enable the Super Speedy MCP endpoint and AI-agent abilities', 'superspeedy' ) . '</label>';
+            echo '<p class="description">' . esc_html__( 'Off by default. Enabling loads the bundled MCP Adapter and adds the MCP setup page after saving. Disabling removes the endpoint; any existing Application Password remains dormant until MCP is enabled again or revoked.', 'superspeedy' ) . '</p>';
         }
         public function field_checkfrequency_cb( $args ) {
             $options = get_option( 'superspeedy_options' );
@@ -472,10 +503,6 @@ if (!class_exists('SuperSpeedySettingsCore')) {
                 if (isset($ssp_licenses[$slug]['version']) && $ssp_licenses[$slug]['version'] !== '') {
                     $ssp_qs['v'] = (string) $ssp_licenses[$slug]['version'];
                 }
-                $ssp_admin_email = get_option('admin_email');
-                if ($ssp_admin_email) {
-                    $ssp_qs['email'] = $ssp_admin_email;
-                }
                 $ssp_qs['sv'] = self::SETTINGS_VERSION;
                 if (!empty($ssp_qs)) {
                     $keycheckurl .= '?' . http_build_query($ssp_qs);
@@ -576,9 +603,7 @@ if (!class_exists('SuperSpeedySettingsCore')) {
             if ($domain == 'localhost') {
                 $domain = 'lh';
             }
-            // Installed build (v=), shared settings-code version (sv=) and site admin
-            // email (email=, stored server-side in a SEPARATE field, never treated as a
-            // known customer), so the download path logs the same detail as the check.
+            // Installed build (v=) and shared settings-code version (sv=).
             $upd_slug = isset($update->slug) ? $update->slug : '';
             $installed_version = '';
             if ($upd_slug) {
@@ -599,7 +624,6 @@ if (!class_exists('SuperSpeedySettingsCore')) {
                 'license_version' => 2,
                 'v'           => $installed_version,
                 'sv'          => self::SETTINGS_VERSION,
-                'email'       => get_option('admin_email'),
             ), $update->download_url);
     
     //            $update->download_url = str_replace('https://www.superspeedyplugins.com', 'https://www.superspeedypluginsXASDASD.com', $update->download_url);
@@ -810,7 +834,7 @@ if (!class_exists('SuperSpeedySettingsCore')) {
         public function enqueue_admin_script( $hook ) {
             wp_enqueue_script('super_speedy_updates', plugin_dir_url(__FILE__) . 'super-speedy-updates.js', array('jquery'), time(), true);
             // add super-speedy-settings/admin.css to the admin page but ONLY on our admin page
-            if ($hook == 'toplevel_page_superspeedy' || $hook == 'super-speedy_page_' . SSP_MCP_Setup::PAGE_SLUG) {
+            if ($hook == 'toplevel_page_superspeedy' || $hook == 'super-speedy_page_superspeedy-mcp-setup') {
                 // Atlas icon packs for the service panels - bundled locally (no external requests).
                 foreach (array('basic-ui', 'school', 'arrow') as $ssp_pack) {
                     wp_enqueue_style('ssp-atlas-' . $ssp_pack, plugin_dir_url(__FILE__) . 'packs/' . $ssp_pack . '/style.css', array(), '1.0.0');
@@ -821,7 +845,7 @@ if (!class_exists('SuperSpeedySettingsCore')) {
                     'nonce' => wp_create_nonce('superspeedy_recheck_license')
                 ));
             }
-            if ($hook == 'super-speedy_page_' . SSP_MCP_Setup::PAGE_SLUG) {
+            if ($hook == 'super-speedy_page_superspeedy-mcp-setup') {
                 wp_enqueue_script('super_speedy_mcp_setup', plugin_dir_url(__FILE__) . 'mcp-setup.js', array('jquery'), self::SETTINGS_VERSION, true);
                 wp_localize_script('super_speedy_mcp_setup', 'superspeedy_mcp', array(
                     'nonce'      => wp_create_nonce('superspeedy_mcp_setup'),
