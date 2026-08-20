@@ -56,8 +56,14 @@ class SSP_MCP {
         $done = true;
 
         add_filter( 'user_has_cap', array( __CLASS__, 'grant_implicit_caps' ), 10, 1 );
+        add_filter( 'mcp_adapter_default_transport_permission_user_capability', array( __CLASS__, 'adapter_access_capability' ), 10, 1 );
+        add_filter( 'mcp_adapter_discover_abilities_capability', array( __CLASS__, 'adapter_access_capability' ), 10, 1 );
         add_action( 'wp_abilities_api_categories_init', array( __CLASS__, 'register_category' ) );
         add_action( 'wp_abilities_api_init', array( __CLASS__, 'register_abilities' ) );
+    }
+
+    public static function adapter_access_capability( $capability ) {
+        return self::CAP_MANAGE;
     }
 
     public static function grant_implicit_caps( $allcaps ) {
@@ -294,7 +300,6 @@ class SSP_MCP {
                 'domain'          => $domain,
                 'license_version' => 2,
                 'sv'              => class_exists( 'SuperSpeedySettingsCore' ) ? SuperSpeedySettingsCore::SETTINGS_VERSION : '',
-                'email'           => get_option( 'admin_email' ),
             ), $url );
         }
 
@@ -307,6 +312,10 @@ class SSP_MCP {
 
         if ( empty( $input['confirm'] ) ) {
             return new WP_Error( 'ssp_confirm_required', __( 'This installs code on the site. Call again with confirm=true.', 'super-speedy-settings' ), array( 'status' => 400 ) );
+        }
+
+        if ( ! current_user_can( 'install_plugins' ) || ( $activate && ! current_user_can( 'activate_plugins' ) ) ) {
+            return new WP_Error( 'ssp_install_forbidden', __( 'This account does not have WordPress permission to install and activate plugins.', 'super-speedy-settings' ), array( 'status' => 403 ) );
         }
 
         $known = self::known_plugins();
@@ -349,7 +358,12 @@ class SSP_MCP {
 
         $skin     = new WP_Ajax_Upgrader_Skin();
         $upgrader = new Plugin_Upgrader( $skin );
-        $outcome  = $upgrader->install( $url );
+        add_filter( 'http_request_args', array( __CLASS__, 'prevent_install_redirects' ), 10, 2 );
+        try {
+            $outcome = $upgrader->install( $url );
+        } finally {
+            remove_filter( 'http_request_args', array( __CLASS__, 'prevent_install_redirects' ), 10 );
+        }
 
         if ( is_wp_error( $outcome ) ) {
             return new WP_Error( 'ssp_install_failed', $outcome->get_error_message() );
@@ -380,6 +394,15 @@ class SSP_MCP {
             'activation_error' => $activation_error,
             'notes'            => __( 'Installed from the licensed update server. Check list-plugins to confirm, and see list-install-log for the audit trail.', 'super-speedy-settings' ),
         );
+    }
+
+    /** Do not let an approved package URL redirect to an unapproved host. */
+    public static function prevent_install_redirects( $args, $url ) {
+        $host = wp_parse_url( $url, PHP_URL_HOST );
+        if ( in_array( $host, self::allowed_hosts(), true ) ) {
+            $args['redirection'] = 0;
+        }
+        return $args;
     }
 
     protected static function log_install( $slug, $activated ) {

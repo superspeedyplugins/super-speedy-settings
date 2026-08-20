@@ -148,7 +148,7 @@ if ( ! class_exists( 'SSP_MCP_Setup' ) ) {
         }
 
         private static function sync_agent_capabilities( WP_User $user, $allow_execute, $allow_install ) {
-            $all = array_merge( self::manage_capabilities(), self::execute_capabilities(), array( 'ssp_install_plugins' ) );
+            $all = array_merge( self::manage_capabilities(), self::execute_capabilities(), array( 'ssp_install_plugins', 'install_plugins', 'activate_plugins' ) );
             foreach ( array_unique( $all ) as $capability ) {
                 $user->remove_cap( $capability );
             }
@@ -162,6 +162,8 @@ if ( ! class_exists( 'SSP_MCP_Setup' ) ) {
             }
             if ( $allow_install ) {
                 $user->add_cap( 'ssp_install_plugins' );
+                $user->add_cap( 'install_plugins' );
+                $user->add_cap( 'activate_plugins' );
             }
             update_user_meta( $user->ID, 'ssp_mcp_allow_execute', $allow_execute ? '1' : '0' );
             update_user_meta( $user->ID, 'ssp_mcp_allow_install', $allow_install ? '1' : '0' );
