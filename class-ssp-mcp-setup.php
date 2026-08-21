@@ -198,8 +198,38 @@ if ( ! class_exists( 'SSP_MCP_Setup' ) ) {
             return true;
         }
 
-        private static function shell_arg( $value ) {
-            return "'" . str_replace( "'", "'\\''", (string) $value ) . "'";
+        /** Generate client configuration without putting secrets in shell arguments. */
+        public static function connection_config_strings( $name, $endpoint, $username, $password ) {
+            $package = '@automattic/mcp-wordpress-remote@0.4.0';
+            $environment = array(
+                'WP_API_URL'      => (string) $endpoint,
+                'WP_API_USERNAME' => (string) $username,
+                'WP_API_PASSWORD' => (string) $password,
+                'OAUTH_ENABLED'   => 'false',
+            );
+
+            $toml_environment = array();
+            foreach ( $environment as $key => $value ) {
+                $toml_environment[] = $key . ' = ' . wp_json_encode( $value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
+            }
+            $toml = '[mcp_servers.' . sanitize_key( $name ) . "]\n"
+                . 'command = "npx"' . "\n"
+                . 'args = ["-y", "' . $package . '"]' . "\n"
+                . 'env = { ' . implode( ', ', $toml_environment ) . ' }';
+            $json = wp_json_encode(
+                array(
+                    'mcpServers' => array(
+                        sanitize_key( $name ) => array(
+                            'command' => 'npx',
+                            'args'    => array( '-y', $package ),
+                            'env'     => $environment,
+                        ),
+                    ),
+                ),
+                JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+            );
+
+            return array( 'codex' => $toml, 'claude' => $json );
         }
 
         public static function create_connection() {
@@ -244,20 +274,14 @@ if ( ! class_exists( 'SSP_MCP_Setup' ) ) {
             $password = $created[0];
             $endpoint = rest_url( 'mcp/mcp-adapter-default-server' );
             $name     = self::connection_name();
-            $proxy    = 'npx -y @automattic/mcp-wordpress-remote@latest';
-            $env      = ' --env WP_API_URL=' . self::shell_arg( $endpoint )
-                . ' --env WP_API_USERNAME=' . self::shell_arg( $user->user_login )
-                . ' --env WP_API_PASSWORD=' . self::shell_arg( $password );
-            $claude_env = ' -e WP_API_URL=' . self::shell_arg( $endpoint )
-                . ' -e WP_API_USERNAME=' . self::shell_arg( $user->user_login )
-                . ' -e WP_API_PASSWORD=' . self::shell_arg( $password );
+            $configs  = self::connection_config_strings( $name, $endpoint, $user->user_login, $password );
 
             wp_send_json_success( array(
-                'codex'   => 'codex mcp add ' . $name . $env . ' -- ' . $proxy,
-                'claude'  => 'claude mcp add --scope user ' . $name . $claude_env . ' -- ' . $proxy,
+                'codex'   => $configs['codex'],
+                'claude'  => $configs['claude'],
                 'name'    => $name,
                 'user'    => $user->user_login,
-                'message' => __( 'Connection commands created for the dedicated Super Speedy Agent user. Copy one now: WordPress will not show this password again.', 'super-speedy-settings' ),
+                'message' => __( 'Connection configuration created for the dedicated Super Speedy Agent user. Copy it into your client configuration now: WordPress will not show this password again.', 'super-speedy-settings' ),
             ) );
         }
 
@@ -316,7 +340,7 @@ if ( ! class_exists( 'SSP_MCP_Setup' ) ) {
                         <ol>
                             <li class="<?php echo $has_licence ? 'is-complete' : ''; ?>"><?php echo wp_kses_post( sprintf( __( 'Enter your licence on the <a href="%s">Super Speedy Plugins settings page</a>.', 'super-speedy-settings' ), esc_url( admin_url( 'admin.php?page=superspeedy' ) ) ) ); ?></li>
                             <li class="<?php echo $app_password ? 'is-complete' : ''; ?>"><?php esc_html_e( 'Make sure WordPress Application Passwords are available. Production sites require HTTPS.', 'super-speedy-settings' ); ?></li>
-                            <li><?php esc_html_e( 'Generate a command, paste it into your terminal, then restart your AI assistant.', 'super-speedy-settings' ); ?></li>
+                            <li><?php esc_html_e( 'Generate the configuration, paste it into your MCP client configuration file, then restart your AI assistant.', 'super-speedy-settings' ); ?></li>
                         </ol>
                         <?php if ( ! $has_licence ) : ?><p class="notice notice-warning inline"><?php esc_html_e( 'You can connect without a licence, but the assistant cannot download other Super Speedy plugins until a licence is entered.', 'super-speedy-settings' ); ?></p><?php endif; ?>
                         <?php if ( ! $app_password ) : ?><p class="notice notice-error inline"><?php esc_html_e( 'Application Passwords are unavailable. Production sites need HTTPS. Local HTTP sites must use the local WordPress environment type.', 'super-speedy-settings' ); ?></p><?php endif; ?>
@@ -324,17 +348,17 @@ if ( ! class_exists( 'SSP_MCP_Setup' ) ) {
                 </div>
 
                 <div class="ssp-mcp-card ssp-mcp-command-card">
-                    <h2><?php esc_html_e( 'Generate connection commands', 'super-speedy-settings' ); ?></h2>
+                    <h2><?php esc_html_e( 'Generate connection configuration', 'super-speedy-settings' ); ?></h2>
                     <p><?php esc_html_e( 'This creates or updates a dedicated Super Speedy Agent user and gives it only the selected Super Speedy capabilities. Generating again invalidates the previous connection.', 'super-speedy-settings' ); ?></p>
                     <p><label><input type="checkbox" id="ssp-mcp-allow-execute" <?php checked( $execute ); ?>> <?php esc_html_e( 'Allow high-impact plugin actions such as sends, imports and applied optimisation plans', 'super-speedy-settings' ); ?></label></p>
                     <p><label><input type="checkbox" id="ssp-mcp-allow-install" <?php checked( $install ); ?>> <?php esc_html_e( 'Allow installation and activation of other licensed Super Speedy plugins', 'super-speedy-settings' ); ?></label></p>
                     <?php if ( $existing ) : ?><p class="ssp-mcp-existing"><?php esc_html_e( 'A Super Speedy MCP connection already exists. Its secret cannot be shown again, but you can replace or revoke it.', 'super-speedy-settings' ); ?></p><?php endif; ?>
-                    <p><button type="button" class="button button-primary" id="ssp-mcp-generate" <?php disabled( ! $ready ); ?>><?php echo esc_html( $existing ? __( 'Replace connection commands', 'super-speedy-settings' ) : __( 'Generate connection commands', 'super-speedy-settings' ) ); ?></button> <button type="button" class="button" id="ssp-mcp-revoke" <?php disabled( ! $existing ); ?>><?php esc_html_e( 'Revoke connection', 'super-speedy-settings' ); ?></button></p>
+                    <p><button type="button" class="button button-primary" id="ssp-mcp-generate" <?php disabled( ! $ready ); ?>><?php echo esc_html( $existing ? __( 'Replace connection configuration', 'super-speedy-settings' ) : __( 'Generate connection configuration', 'super-speedy-settings' ) ); ?></button> <button type="button" class="button" id="ssp-mcp-revoke" <?php disabled( ! $existing ); ?>><?php esc_html_e( 'Revoke connection', 'super-speedy-settings' ); ?></button></p>
                     <div id="ssp-mcp-result" hidden>
                         <div class="notice notice-warning inline"><p id="ssp-mcp-message"></p></div>
-                        <label for="ssp-mcp-codex"><strong><?php esc_html_e( 'Codex', 'super-speedy-settings' ); ?></strong></label>
+                        <label for="ssp-mcp-codex"><strong><?php esc_html_e( 'Codex config.toml', 'super-speedy-settings' ); ?></strong></label>
                         <div class="ssp-mcp-command"><textarea id="ssp-mcp-codex" rows="4" readonly spellcheck="false"></textarea><button type="button" class="button ssp-mcp-copy" data-target="ssp-mcp-codex"><?php esc_html_e( 'Copy', 'super-speedy-settings' ); ?></button></div>
-                        <label for="ssp-mcp-claude"><strong><?php esc_html_e( 'Claude Code', 'super-speedy-settings' ); ?></strong></label>
+                        <label for="ssp-mcp-claude"><strong><?php esc_html_e( 'Claude Code configuration', 'super-speedy-settings' ); ?></strong></label>
                         <div class="ssp-mcp-command"><textarea id="ssp-mcp-claude" rows="4" readonly spellcheck="false"></textarea><button type="button" class="button ssp-mcp-copy" data-target="ssp-mcp-claude"><?php esc_html_e( 'Copy', 'super-speedy-settings' ); ?></button></div>
                     </div>
                     <div id="ssp-mcp-error" class="notice notice-error inline" hidden><p></p></div>

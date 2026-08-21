@@ -259,7 +259,11 @@ class SSP_MCP {
      */
     public static function resolve_download_url( $slug ) {
         $feed = 'https://www.superspeedyplugins.com/assets/plugins/' . rawurlencode( $slug ) . '.json';
-        $response = wp_remote_get( $feed, array( 'timeout' => 20 ) );
+        $response = wp_safe_remote_get( $feed, array(
+            'timeout'     => 20,
+            'redirection' => 0,
+            'sslverify'   => true,
+        ) );
 
         if ( is_wp_error( $response ) ) {
             return new WP_Error( 'ssp_feed_unreachable', sprintf( __( 'Could not reach the update server: %s', 'super-speedy-settings' ), $response->get_error_message() ) );
@@ -273,16 +277,10 @@ class SSP_MCP {
             return new WP_Error( 'ssp_no_download', __( 'The update feed did not offer a download for this plugin.', 'super-speedy-settings' ) );
         }
 
-        $url  = (string) $data['download_url'];
-        $host = wp_parse_url( $url, PHP_URL_HOST );
-
-        // The allowlist is the point: even if the feed were tampered with, the
-        // zip can only ever come from a host we name here.
-        if ( ! in_array( $host, self::allowed_hosts(), true ) ) {
-            return new WP_Error(
-                'ssp_host_not_allowed',
-                sprintf( __( 'Refusing to download from "%s" — it is not an approved Super Speedy host.', 'super-speedy-settings' ), (string) $host )
-            );
+        $url = (string) $data['download_url'];
+        $validated = self::validate_package_url( $url );
+        if ( is_wp_error( $validated ) ) {
+            return $validated;
         }
 
         // Carry the licence with the SAME parameter set the update checker sends
@@ -304,6 +302,73 @@ class SSP_MCP {
         }
 
         return $url;
+    }
+
+    /** Validate the complete package origin, not merely its hostname. */
+    public static function validate_package_url( $url ) {
+        $parts = wp_parse_url( $url );
+        $host  = is_array( $parts ) && isset( $parts['host'] ) ? strtolower( $parts['host'] ) : '';
+        $scheme = is_array( $parts ) && isset( $parts['scheme'] ) ? strtolower( $parts['scheme'] ) : '';
+        $port = is_array( $parts ) && isset( $parts['port'] ) ? (int) $parts['port'] : 443;
+
+        if ( ! is_array( $parts ) || 'https' !== $scheme || 443 !== $port || isset( $parts['user'] ) || isset( $parts['pass'] ) ) {
+            return new WP_Error(
+                'ssp_package_origin_invalid',
+                __( 'Refusing a plugin package URL that is not a credential-free HTTPS origin on port 443.', 'super-speedy-settings' )
+            );
+        }
+        $allowed = array_map( 'strtolower', self::allowed_hosts() );
+        if ( ! in_array( $host, $allowed, true ) ) {
+            return new WP_Error(
+                'ssp_host_not_allowed',
+                sprintf( __( 'Refusing to download from "%s" because it is not an approved Super Speedy host.', 'super-speedy-settings' ), $host )
+            );
+        }
+        return true;
+    }
+
+    /** Request arguments for a final-origin-bound package download. */
+    public static function package_request_args( $filename ) {
+        return array(
+            'timeout'     => 300,
+            'redirection' => 0,
+            'sslverify'   => true,
+            'stream'      => true,
+            'filename'    => $filename,
+        );
+    }
+
+    /** Download one validated package without following a redirect. */
+    public static function download_package( $url ) {
+        $validated = self::validate_package_url( $url );
+        if ( is_wp_error( $validated ) ) {
+            return $validated;
+        }
+
+        require_once ABSPATH . 'wp-admin/includes/file.php';
+        $temporary = wp_tempnam( wp_parse_url( $url, PHP_URL_PATH ) );
+        if ( ! $temporary ) {
+            return new WP_Error( 'ssp_package_temp_failed', __( 'Could not create a temporary file for the plugin package.', 'super-speedy-settings' ) );
+        }
+
+        $response = wp_safe_remote_get( $url, self::package_request_args( $temporary ) );
+        if ( is_wp_error( $response ) ) {
+            unlink( $temporary );
+            return $response;
+        }
+
+        $code = (int) wp_remote_retrieve_response_code( $response );
+        if ( 200 !== $code ) {
+            $body = is_readable( $temporary ) ? file_get_contents( $temporary ) : '';
+            unlink( $temporary );
+            return new WP_Error(
+                'http_' . $code,
+                sprintf( __( 'The plugin package server returned HTTP %d.', 'super-speedy-settings' ), $code ),
+                array( 'code' => $code, 'body' => is_string( $body ) ? $body : '' )
+            );
+        }
+
+        return $temporary;
     }
 
     public static function exec_install_plugin( $input = array() ) {
@@ -356,13 +421,19 @@ class SSP_MCP {
         require_once ABSPATH . 'wp-admin/includes/misc.php';
         require_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
 
+        $package = self::download_package( $url );
+        if ( is_wp_error( $package ) ) {
+            return $package;
+        }
+
         $skin     = new WP_Ajax_Upgrader_Skin();
         $upgrader = new Plugin_Upgrader( $skin );
-        add_filter( 'http_request_args', array( __CLASS__, 'prevent_install_redirects' ), 10, 2 );
         try {
-            $outcome = $upgrader->install( $url );
+            $outcome = $upgrader->install( $package );
         } finally {
-            remove_filter( 'http_request_args', array( __CLASS__, 'prevent_install_redirects' ), 10 );
+            if ( file_exists( $package ) ) {
+                unlink( $package );
+            }
         }
 
         if ( is_wp_error( $outcome ) ) {
@@ -398,9 +469,9 @@ class SSP_MCP {
 
     /** Do not let an approved package URL redirect to an unapproved host. */
     public static function prevent_install_redirects( $args, $url ) {
-        $host = wp_parse_url( $url, PHP_URL_HOST );
-        if ( in_array( $host, self::allowed_hosts(), true ) ) {
+        if ( true === self::validate_package_url( $url ) ) {
             $args['redirection'] = 0;
+            $args['sslverify'] = true;
         }
         return $args;
     }
