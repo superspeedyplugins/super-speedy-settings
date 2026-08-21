@@ -15,6 +15,16 @@
  */
 if (!defined('ABSPATH')) { return; }
 
+// A plugin activated after plugins_loaded can include a second physical core in
+// the activation request. Keep the already-running core for that request; the
+// normal candidate election selects the newest copy on the next fresh request.
+if ( class_exists( 'SuperSpeedySettingsCore', false ) || ! empty( $GLOBALS['ssp_settings_core_bootstrapped'] ) ) {
+    return;
+}
+$GLOBALS['ssp_settings_core_bootstrapped'] = true;
+$GLOBALS['ssp_settings_selected_dir'] = __DIR__;
+$GLOBALS['ssp_settings_selected_version'] = '1.8.6';
+
 require_once __DIR__ . '/abstract-class-super-speedy-settings.php';
 if ( is_admin() ) {
     require_once __DIR__ . '/plugin-update-checker/plugin-update-checker.php';
@@ -31,8 +41,7 @@ if ( ! function_exists( 'superspeedy_mcp_enabled' ) ) {
 }
 
 // Use the official WordPress MCP Adapter. An already-loaded standalone plugin
-// or Composer copy wins; otherwise load the bundled package through Jetpack's
-// shared-package autoloader.
+// or Composer copy wins; otherwise the selected settings core loads its bundle.
 if ( superspeedy_mcp_enabled() && file_exists( __DIR__ . '/class-ssp-official-mcp-adapter.php' ) ) {
     require_once __DIR__ . '/class-ssp-official-mcp-adapter.php';
     SSP_Official_MCP_Adapter::bootstrap();
@@ -68,7 +77,7 @@ if (!class_exists('SuperSpeedySettingsCore')) {
         // &sv= (distinct from a plugin's own build, sent as v=). Lets auth see which
         // sites run stale settings code (e.g. still checking www, or missing a param).
         // Bump this whenever the settings code changes in a way worth tracking.
-        const SETTINGS_VERSION = '1.8.5';
+        const SETTINGS_VERSION = '1.8.6';
         private $update_checkers = array();
         
         

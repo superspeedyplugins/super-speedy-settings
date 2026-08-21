@@ -2,9 +2,9 @@
 /**
  * Load the official WordPress MCP Adapter, preferring any copy already loaded.
  *
- * The bundled dependency is installed with Composer and loaded through Jetpack
- * Autoloader, which is the integration pattern recommended by the MCP Adapter
- * project for plugins that share this dependency.
+ * The selected settings core owns one small PSR-4 loader for the two official
+ * WordPress package namespaces. This avoids loading a physical Composer or
+ * Jetpack autoloader from every plugin that bundles these shared settings.
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -54,16 +54,18 @@ if ( ! class_exists( 'SSP_Official_MCP_Adapter' ) ) {
                 return;
             }
 
-            // The latest-copy-wins settings core loads once, so this package
-            // loader is also required once. Jetpack selects the newest shared
-            // package version if another plugin bundles the Adapter as well.
-            $autoloader = __DIR__ . '/vendor/autoload_packages.php';
-            if ( ! is_readable( $autoloader ) ) {
+            $package_loader = __DIR__ . '/class-ssp-mcp-package-loader.php';
+            if ( ! is_readable( $package_loader ) ) {
                 self::$status['message'] = __( 'The bundled MCP Adapter dependencies are missing.', 'super-speedy-settings' );
                 return;
             }
 
-            require_once $autoloader;
+            require_once $package_loader;
+            if ( ! function_exists( 'ssp_mcp_register_package_loader' )
+                || ! ssp_mcp_register_package_loader( __DIR__ . '/vendor' ) ) {
+                self::$status['message'] = __( 'The bundled MCP Adapter dependencies could not be registered.', 'super-speedy-settings' );
+                return;
+            }
 
             if ( ! class_exists( $adapter_class ) ) {
                 self::$status['message'] = __( 'The bundled MCP Adapter could not be loaded.', 'super-speedy-settings' );
