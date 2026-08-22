@@ -23,7 +23,7 @@ if ( class_exists( 'SuperSpeedySettingsCore', false ) || ! empty( $GLOBALS['ssp_
 }
 $GLOBALS['ssp_settings_core_bootstrapped'] = true;
 $GLOBALS['ssp_settings_selected_dir'] = __DIR__;
-$GLOBALS['ssp_settings_selected_version'] = '1.14.0';
+$GLOBALS['ssp_settings_selected_version'] = '1.14.1';
 
 require_once __DIR__ . '/abstract-class-super-speedy-settings.php';
 if ( is_admin() ) {
@@ -82,7 +82,7 @@ if (!class_exists('SuperSpeedySettingsCore')) {
         // &sv= (distinct from a plugin's own build, sent as v=). Lets auth see which
         // sites run stale settings code (e.g. still checking www, or missing a param).
         // Bump this whenever the settings code changes in a way worth tracking.
-        const SETTINGS_VERSION = '1.14.0';
+        const SETTINGS_VERSION = '1.14.1';
         private $update_checkers = array();
         
         
@@ -613,11 +613,11 @@ if (!class_exists('SuperSpeedySettingsCore')) {
             if (current_user_can('install_plugins')) {
                 return '<button type="button" class="button button-primary" id="superspeedy-install-sspa" data-nonce="'
                     . esc_attr(wp_create_nonce('superspeedy_install_sspa')) . '">'
-                    . esc_html__('Install it free', 'super-speedy-settings') . '</button>'
+                    . esc_html__('Install Performance Analysis FREE', 'super-speedy-settings') . '</button>'
                     . ' <span class="superspeedy-sspa-status" role="status"></span>';
             }
             return '<a class="button button-primary" href="https://github.com/superspeedyplugins/super-speedy-performance-analysis/releases/latest" target="_blank" rel="noopener">'
-                . esc_html__('Download it free', 'super-speedy-settings') . '</a>';
+                . esc_html__('Download Performance Analysis FREE', 'super-speedy-settings') . '</a>';
         }
 
         public function display_performance_analysis_panel() {
