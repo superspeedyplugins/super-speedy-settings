@@ -23,7 +23,7 @@ if ( class_exists( 'SuperSpeedySettingsCore', false ) || ! empty( $GLOBALS['ssp_
 }
 $GLOBALS['ssp_settings_core_bootstrapped'] = true;
 $GLOBALS['ssp_settings_selected_dir'] = __DIR__;
-$GLOBALS['ssp_settings_selected_version'] = '1.10.2';
+$GLOBALS['ssp_settings_selected_version'] = '1.10.3';
 
 require_once __DIR__ . '/abstract-class-super-speedy-settings.php';
 if ( is_admin() ) {
@@ -82,7 +82,7 @@ if (!class_exists('SuperSpeedySettingsCore')) {
         // &sv= (distinct from a plugin's own build, sent as v=). Lets auth see which
         // sites run stale settings code (e.g. still checking www, or missing a param).
         // Bump this whenever the settings code changes in a way worth tracking.
-        const SETTINGS_VERSION = '1.10.2';
+        const SETTINGS_VERSION = '1.10.3';
         private $update_checkers = array();
         
         
@@ -140,30 +140,15 @@ if (!class_exists('SuperSpeedySettingsCore')) {
             return false;
         }
 
-        /** Is the Super Speedy menu the open one, so its submenu is on screen? */
-        protected function superspeedy_menu_is_open() {
-            global $pagenow, $submenu;
-            if ( 'admin.php' !== $pagenow || ! isset( $_GET['page'] ) ) {
-                return false;
-            }
-            $page = sanitize_key( wp_unslash( $_GET['page'] ) );
-            if ( self::$menu_slug === $page ) {
-                return true;
-            }
-            foreach ( (array) ( isset( $submenu[ self::$menu_slug ] ) ? $submenu[ self::$menu_slug ] : array() ) as $item ) {
-                if ( isset( $item[2] ) && $item[2] === $page ) {
-                    return true;
-                }
-            }
-            return false;
-        }
-
         /**
          * Place the update counts, once every plugin has registered its submenu.
          *
-         * Closed menu: one aggregate bubble on "Super Speedy", which is the only thing
-         * visible. Open menu: no aggregate, and each plugin's own count against its own
-         * submenu item, because at that point the aggregate says less than the parts.
+         * The aggregate ALWAYS stays on "Super Speedy": collapsed, hovered or open, that
+         * is the thing Dave looks at to know whether anything moved. The per-plugin counts
+         * are added as well, on each submenu item, so that expanding the menu - by hover
+         * fly-out or by clicking through - shows WHICH plugin the aggregate is made of.
+         * They cost nothing when the submenu is not on screen, because WordPress renders
+         * it either way and CSS decides whether it is visible.
          *
          * Counts come from the changelog feed and are only fetched on screens where they
          * are shown, so no other wp-admin page pays for the HTTP. Only INSTALLED AND ACTIVE
@@ -192,17 +177,14 @@ if (!class_exists('SuperSpeedySettingsCore')) {
                 return;
             }
 
-            if ( ! $this->superspeedy_menu_is_open() ) {
-                foreach ( (array) $menu as $index => $item ) {
-                    if ( isset( $item[2] ) && self::$menu_slug === $item[2] ) {
-                        $menu[ $index ][0] .= $this->update_count_bubble( $total );
-                        break;
-                    }
+            foreach ( (array) $menu as $index => $item ) {
+                if ( isset( $item[2] ) && self::$menu_slug === $item[2] ) {
+                    $menu[ $index ][0] .= $this->update_count_bubble( $total );
+                    break;
                 }
-                return;
             }
 
-            // Open: the count belongs against each plugin, so you can see WHICH one moved.
+            // And against each plugin, so an expanded menu shows which one moved.
             $names = array();
             foreach ( $this->getLicenses() as $slug => $ssp_license ) {
                 if ( isset( $counts[ $slug ] ) && ! empty( $ssp_license['name'] ) ) {
