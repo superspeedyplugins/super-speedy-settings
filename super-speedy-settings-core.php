@@ -23,7 +23,7 @@ if ( class_exists( 'SuperSpeedySettingsCore', false ) || ! empty( $GLOBALS['ssp_
 }
 $GLOBALS['ssp_settings_core_bootstrapped'] = true;
 $GLOBALS['ssp_settings_selected_dir'] = __DIR__;
-$GLOBALS['ssp_settings_selected_version'] = '1.10.0';
+$GLOBALS['ssp_settings_selected_version'] = '1.10.1';
 
 require_once __DIR__ . '/abstract-class-super-speedy-settings.php';
 if ( is_admin() ) {
@@ -82,7 +82,7 @@ if (!class_exists('SuperSpeedySettingsCore')) {
         // &sv= (distinct from a plugin's own build, sent as v=). Lets auth see which
         // sites run stale settings code (e.g. still checking www, or missing a param).
         // Bump this whenever the settings code changes in a way worth tracking.
-        const SETTINGS_VERSION = '1.10.0';
+        const SETTINGS_VERSION = '1.10.1';
         private $update_checkers = array();
         
         
@@ -579,7 +579,12 @@ if (!class_exists('SuperSpeedySettingsCore')) {
                 wp_send_json_error( array( 'message' => __( 'The shared installer is not available in this copy of Super Speedy Settings.', 'super-speedy-settings' ) ), 500 );
             }
 
-            $result = SSP_MCP::exec_install_plugin( array( 'slug' => self::SSPA_SLUG, 'activate' => true ) );
+            // confirm: the human clicked the button, which is what the interlock is for.
+            $result = SSP_MCP::exec_install_plugin( array(
+                'slug'     => self::SSPA_SLUG,
+                'activate' => true,
+                'confirm'  => true,
+            ) );
             if ( is_wp_error( $result ) ) {
                 wp_send_json_error( array( 'message' => $result->get_error_message() ), 500 );
             }

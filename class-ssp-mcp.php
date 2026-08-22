@@ -494,7 +494,12 @@ class SSP_MCP {
             return new WP_Error( 'ssp_unknown_plugin', __( 'Unknown plugin slug. Call list-plugins for the valid ones.', 'super-speedy-settings' ), array( 'status' => 400 ) );
         }
 
-        if ( self::licence_key() === '' ) {
+        // A plugin with an approved public package is free and its download carries no
+        // credentials, so the licence gate does not apply to it. Without this a keyless
+        // site - which is exactly who the free plugins are for - is refused before
+        // resolve_download_url() is ever consulted.
+        $public_packages = self::public_packages();
+        if ( ! isset( $public_packages[ $slug ] ) && self::licence_key() === '' ) {
             return new WP_Error( 'ssp_no_licence', __( 'No licence key is entered on this site, so nothing can be downloaded. A human must add one once on the Super Speedy Plugins settings screen.', 'super-speedy-settings' ), array( 'status' => 400 ) );
         }
 
