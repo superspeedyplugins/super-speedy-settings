@@ -23,7 +23,7 @@ if ( class_exists( 'SuperSpeedySettingsCore', false ) || ! empty( $GLOBALS['ssp_
 }
 $GLOBALS['ssp_settings_core_bootstrapped'] = true;
 $GLOBALS['ssp_settings_selected_dir'] = __DIR__;
-$GLOBALS['ssp_settings_selected_version'] = '1.10.4';
+$GLOBALS['ssp_settings_selected_version'] = '1.11.0';
 
 require_once __DIR__ . '/abstract-class-super-speedy-settings.php';
 if ( is_admin() ) {
@@ -82,7 +82,7 @@ if (!class_exists('SuperSpeedySettingsCore')) {
         // &sv= (distinct from a plugin's own build, sent as v=). Lets auth see which
         // sites run stale settings code (e.g. still checking www, or missing a param).
         // Bump this whenever the settings code changes in a way worth tracking.
-        const SETTINGS_VERSION = '1.10.4';
+        const SETTINGS_VERSION = '1.11.0';
         private $update_checkers = array();
         
         
@@ -516,6 +516,9 @@ if (!class_exists('SuperSpeedySettingsCore')) {
                     ? SSPA_Report::summary()
                     : null;
                 echo '<h2>' . esc_html__( 'Performance Analysis', 'super-speedy-settings' ) . '</h2>';
+                $pages = ( class_exists( 'SSPA_Report' ) && method_exists( 'SSPA_Report', 'page_analysis_count' ) )
+                    ? SSPA_Report::page_analysis_count()
+                    : 0;
                 if ( is_array( $summary ) && null !== $summary['score'] ) {
                     $when = ! empty( $summary['finished'] ) ? strtotime( $summary['finished'] . ' UTC' ) : 0;
                     echo '<p class="superspeedy-sspa-score"><strong>' . esc_html( $summary['score'] ) . '/100</strong> ';
@@ -527,6 +530,20 @@ if (!class_exists('SuperSpeedySettingsCore')) {
                         );
                     }
                     echo '</p>';
+                } elseif ( $pages ) {
+                    // A page analysis is stored separately and deliberately produces no site
+                    // score, so "nothing analysed yet" reads as broken to someone who has
+                    // just analysed a page. Say which measurement is actually missing.
+                    echo '<p>' . esc_html( sprintf(
+                        /* translators: %d: number of single pages already analysed. */
+                        _n(
+                            '%d page analysed so far. A site-wide analysis gives you a score and finds the plugins costing you the most across every key page.',
+                            '%d pages analysed so far. A site-wide analysis gives you a score and finds the plugins costing you the most across every key page.',
+                            $pages,
+                            'super-speedy-settings'
+                        ),
+                        $pages
+                    ) ) . '</p>';
                 } else {
                     echo '<p>' . esc_html__( 'Nothing analysed yet. Run one analysis to find out which plugin is costing this site the most time.', 'super-speedy-settings' ) . '</p>';
                 }
