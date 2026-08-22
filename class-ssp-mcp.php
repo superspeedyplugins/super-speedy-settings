@@ -574,7 +574,9 @@ class SSP_MCP {
             'already_present'  => false,
             'activated'        => $activated,
             'activation_error' => $activation_error,
-            'notes'            => __( 'Installed from the licensed update server. Check list-plugins to confirm, and see list-install-log for the audit trail.', 'super-speedy-settings' ),
+            'notes'            => isset( $public_packages[ $slug ] )
+                ? __( 'Installed from the public release. Check list-plugins to confirm, and see list-install-log for the audit trail.', 'super-speedy-settings' )
+                : __( 'Installed from the licensed update server. Check list-plugins to confirm, and see list-install-log for the audit trail.', 'super-speedy-settings' ),
         );
     }
 
