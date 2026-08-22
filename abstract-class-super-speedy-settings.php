@@ -5,6 +5,12 @@ if (!class_exists('SuperSpeedySettings')) {
         protected static $version = 1.0;
         protected static $menu_slug = 'superspeedy';
         private static $superspeedy_licenses = array();
+        /**
+         * The range, for the settings page. Performance Analysis is deliberately
+         * NOT here: it is free, it is the diagnostic that points at everything
+         * else, and it gets its own panel at the top of the page rather than a
+         * row in a licence table. See display_performance_analysis_panel().
+         */
         protected static $base_plugin_info = array(
             'scalability-pro' => array('name' => 'Scalability Pro', 'function' => 'wpi_getIndexes', 'discord' => 'https://discord.gg/f8BZxBPkMg'),
             'super-speedy-imports' => array('name' => 'Super Speedy Imports', 'function' => 'super_speedy_imports_activate', 'discord' => 'https://discord.gg/nYhTqmJjBQ'),

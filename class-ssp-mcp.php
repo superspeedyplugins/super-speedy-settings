@@ -39,6 +39,28 @@ class SSP_MCP {
      * Hosts a plugin zip may be downloaded from. Anything else is refused even
      * if the update feed asks for it.
      */
+    /**
+     * Public packages this site may download WITHOUT a licence key, by slug.
+     *
+     * EXACT URLs only, never a host or a pattern. Listing one here is a deliberate
+     * decision to trust that single unchanging URL: nothing else on the same host
+     * becomes downloadable, and adding another plugin means adding another literal.
+     *
+     * The URL must be the stable "latest" form, so this list does not have to be
+     * edited at every release. The version a site is OFFERED still comes from the
+     * update feed's `version` field; this is only where the package is fetched from.
+     */
+    public static function public_packages() {
+        return (array) apply_filters( 'superspeedy_public_packages', array(
+            'super-speedy-performance-analysis' => 'https://github.com/superspeedyplugins/super-speedy-performance-analysis/releases/latest/download/super-speedy-performance-analysis.zip',
+        ) );
+    }
+
+    /** The exact package URLs approved above, for validate_package_url(). */
+    public static function allowed_package_urls() {
+        return array_values( self::public_packages() );
+    }
+
     public static function allowed_hosts() {
         return (array) apply_filters( 'superspeedy_install_allowed_hosts', array(
             'www.superspeedyplugins.com',
@@ -258,6 +280,13 @@ class SSP_MCP {
      * @return string|WP_Error
      */
     public static function resolve_download_url( $slug ) {
+        // A plugin with an approved public package is free and needs no licence:
+        // fetch it straight from its one allow-listed URL and never call the feed.
+        $public = self::public_packages();
+        if ( isset( $public[ $slug ] ) ) {
+            return (string) $public[ $slug ];
+        }
+
         $feed = 'https://www.superspeedyplugins.com/assets/plugins/' . rawurlencode( $slug ) . '.json';
         $response = wp_safe_remote_get( $feed, array(
             'timeout'     => 20,
@@ -317,6 +346,12 @@ class SSP_MCP {
                 __( 'Refusing a plugin package URL that is not a credential-free HTTPS origin on port 443.', 'super-speedy-settings' )
             );
         }
+        // An exactly allow-listed public package is approved as a whole URL, so the
+        // host allowlist below never has to be widened to cover its origin.
+        if ( in_array( $url, self::allowed_package_urls(), true ) ) {
+            return true;
+        }
+
         $allowed = array_map( 'strtolower', self::allowed_hosts() );
         if ( ! in_array( $host, $allowed, true ) ) {
             return new WP_Error(
@@ -338,7 +373,58 @@ class SSP_MCP {
         );
     }
 
-    /** Download one validated package without following a redirect. */
+    /**
+     * Validate a redirect that a public package download is allowed to follow.
+     *
+     * `releases/latest/download/<file>` answers with TWO hops: first to the same
+     * repository's tagged asset url, then to a short-lived SIGNED url that differs
+     * on every request and therefore cannot be allow-listed literally. Both are
+     * derived from the approved url rather than trusted by host alone:
+     *
+     *   hop 1 must stay under the SAME repository's `/releases/` path
+     *   hop 2 must be https on port 443 at a githubusercontent.com host
+     *
+     * Anything else, and any redirect at all for a url that was not exactly
+     * allow-listed, is refused.
+     *
+     * @param string $url    Redirect target offered by the server.
+     * @param string $origin The exactly allow-listed url the download started at.
+     */
+    public static function validate_public_package_redirect( $url, $origin ) {
+        $url    = (string) $url;
+        $parts  = wp_parse_url( $url );
+        $host   = is_array( $parts ) && isset( $parts['host'] ) ? strtolower( $parts['host'] ) : '';
+        $scheme = is_array( $parts ) && isset( $parts['scheme'] ) ? strtolower( $parts['scheme'] ) : '';
+        $port   = is_array( $parts ) && isset( $parts['port'] ) ? (int) $parts['port'] : 443;
+
+        if ( ! is_array( $parts ) || 'https' !== $scheme || 443 !== $port || isset( $parts['user'] ) || isset( $parts['pass'] ) ) {
+            return new WP_Error(
+                'ssp_package_redirect_invalid',
+                __( 'Refusing a package redirect that is not a credential-free HTTPS origin on port 443.', 'super-speedy-settings' )
+            );
+        }
+
+        $marker = '/releases/';
+        $cut    = strpos( (string) $origin, $marker );
+        if ( false !== $cut ) {
+            $repository = substr( (string) $origin, 0, $cut + strlen( $marker ) );
+            if ( 0 === strpos( $url, $repository ) ) {
+                return true;
+            }
+        }
+
+        $suffix = '.githubusercontent.com';
+        if ( substr( $host, -strlen( $suffix ) ) === $suffix ) {
+            return true;
+        }
+
+        return new WP_Error(
+            'ssp_package_redirect_host',
+            sprintf( __( 'Refusing to follow a package redirect to "%s".', 'super-speedy-settings' ), $url )
+        );
+    }
+
+    /** Download one validated package, following at most the one approved redirect. */
     public static function download_package( $url ) {
         $validated = self::validate_package_url( $url );
         if ( is_wp_error( $validated ) ) {
@@ -358,6 +444,26 @@ class SSP_MCP {
         }
 
         $code = (int) wp_remote_retrieve_response_code( $response );
+        // Only an exactly allow-listed public package may redirect at all, and then
+        // at most twice: the tagged asset url, then the signed asset url.
+        $public    = in_array( $url, self::allowed_package_urls(), true );
+        $redirects = 0;
+        while ( $public && $redirects < 2 && in_array( $code, array( 301, 302, 303, 307, 308 ), true ) ) {
+            $target    = trim( (string) wp_remote_retrieve_header( $response, 'location' ) );
+            $permitted = self::validate_public_package_redirect( $target, $url );
+            if ( is_wp_error( $permitted ) ) {
+                unlink( $temporary );
+                return $permitted;
+            }
+            $response = wp_safe_remote_get( $target, self::package_request_args( $temporary ) );
+            if ( is_wp_error( $response ) ) {
+                unlink( $temporary );
+                return $response;
+            }
+            $code = (int) wp_remote_retrieve_response_code( $response );
+            $redirects++;
+        }
+
         if ( 200 !== $code ) {
             $body = is_readable( $temporary ) ? file_get_contents( $temporary ) : '';
             unlink( $temporary );

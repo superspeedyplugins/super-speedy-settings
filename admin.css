@@ -140,3 +140,29 @@ table.superspeedy-plugins td:first-child img {
     .ssp-mcp-status-grid { grid-template-columns: 1fr; }
     .ssp-mcp-command { grid-template-columns: 1fr; }
 }
+
+/* Performance Analysis panel - always at the top of the settings page. */
+.superspeedy-sspa-panel {
+    background: #fff;
+    border: 1px solid #dcdcde;
+    border-left: 4px solid #6b46c1;
+    border-radius: 6px;
+    padding: 16px 20px;
+    margin: 16px 0;
+}
+.superspeedy-sspa-panel h2 {
+    margin: 0 0 6px;
+    font-size: 18px;
+}
+.superspeedy-sspa-panel p {
+    margin: 6px 0;
+    max-width: 70em;
+}
+.superspeedy-sspa-score strong {
+    font-size: 22px;
+    color: #6b46c1;
+}
+.superspeedy-sspa-status {
+    margin-left: 10px;
+    font-style: italic;
+}

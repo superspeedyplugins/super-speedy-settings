@@ -43,3 +43,39 @@ jQuery(document).ready(function($) {
         });
     });
 });
+
+jQuery(document).ready(function($) {
+    // Install Performance Analysis from the settings panel. The button is only
+    // rendered for a user who can install plugins; the handler checks again.
+    $('#superspeedy-install-sspa').on('click', function(e) {
+        e.preventDefault();
+        var $button = $(this);
+        var $status = $('.superspeedy-sspa-status');
+        var original = $button.text();
+
+        $button.prop('disabled', true).text('Installing...');
+        $status.text('');
+
+        $.post(ajaxurl, {
+            action: 'superspeedy_install_performance_analysis',
+            nonce: $button.data('nonce')
+        }).done(function(response) {
+            if (response && response.success) {
+                $status.text(response.data.message || 'Installed.');
+                if (response.data && response.data.redirect) {
+                    window.location = response.data.redirect;
+                }
+                return;
+            }
+            $button.prop('disabled', false).text(original);
+            $status.text((response && response.data && response.data.message) || 'The install failed.');
+        }).fail(function(xhr) {
+            var message = 'The install failed.';
+            if (xhr && xhr.responseJSON && xhr.responseJSON.data && xhr.responseJSON.data.message) {
+                message = xhr.responseJSON.data.message;
+            }
+            $button.prop('disabled', false).text(original);
+            $status.text(message);
+        });
+    });
+});

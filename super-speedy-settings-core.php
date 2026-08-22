@@ -23,7 +23,7 @@ if ( class_exists( 'SuperSpeedySettingsCore', false ) || ! empty( $GLOBALS['ssp_
 }
 $GLOBALS['ssp_settings_core_bootstrapped'] = true;
 $GLOBALS['ssp_settings_selected_dir'] = __DIR__;
-$GLOBALS['ssp_settings_selected_version'] = '1.8.6';
+$GLOBALS['ssp_settings_selected_version'] = '1.9.0';
 
 require_once __DIR__ . '/abstract-class-super-speedy-settings.php';
 if ( is_admin() ) {
@@ -51,9 +51,14 @@ if ( superspeedy_mcp_enabled() && file_exists( __DIR__ . '/class-ssp-official-mc
 // from this site's own licence). Lives here so one implementation reaches every Super
 // Speedy plugin on its next settings sync; SSP_MCP::init() guards against the nine
 // copies registering nine times. Version-gated on the core Abilities API.
-if ( superspeedy_mcp_enabled() && file_exists( __DIR__ . '/class-ssp-mcp.php' ) ) {
+// The class itself is loaded ALWAYS, because the settings page's own install
+// button calls SSP_MCP::exec_install_plugin() and must work on a site that has
+// never opted into MCP. Only the ABILITY REGISTRATION is gated on the opt-in.
+// Defining the class has no side effects: the file declares one class and hooks
+// nothing at include time.
+if ( file_exists( __DIR__ . '/class-ssp-mcp.php' ) ) {
     require_once __DIR__ . '/class-ssp-mcp.php';
-    if ( function_exists( 'wp_register_ability' ) && class_exists( 'SSP_MCP' ) ) {
+    if ( superspeedy_mcp_enabled() && function_exists( 'wp_register_ability' ) && class_exists( 'SSP_MCP' ) ) {
         SSP_MCP::init();
     }
 }
@@ -77,7 +82,7 @@ if (!class_exists('SuperSpeedySettingsCore')) {
         // &sv= (distinct from a plugin's own build, sent as v=). Lets auth see which
         // sites run stale settings code (e.g. still checking www, or missing a param).
         // Bump this whenever the settings code changes in a way worth tracking.
-        const SETTINGS_VERSION = '1.8.6';
+        const SETTINGS_VERSION = '1.9.0';
         private $update_checkers = array();
         
         
@@ -130,6 +135,8 @@ if (!class_exists('SuperSpeedySettingsCore')) {
                 ?>
                 <div class="super-speedy-plugins-admin-header"><a href="https://www.superspeedyplugins.com/" target="_blank"><img src="<?php echo esc_url( plugins_url( 'super-speedy-plugins-black-text.png', __FILE__ ) ); ?>" width="151" height="32" alt="Super Speedy Plugins"></a></div>
                 
+                <?php $this->display_performance_analysis_panel(); ?>
+
                 <!-- Service panels flexbox -->
                 <div class="superspeedy-services">
                     <div class="superspeedy-service-panel">
@@ -191,6 +198,7 @@ if (!class_exists('SuperSpeedySettingsCore')) {
             add_action('wp_error_added', array($this, 'handle_wp_error_added'), 10, 4);
             add_action( 'admin_enqueue_scripts', array($this, 'enqueue_admin_script'));
             add_action('wp_ajax_superspeedy_recheck_license', array($this, 'handle_recheck_license'));
+            add_action('wp_ajax_superspeedy_install_performance_analysis', array($this, 'handle_install_performance_analysis'));
             add_action('updated_option', array($this, 'keep_shared_options_out_of_autoload'), 10, 1);
             $this->ensure_options_not_autoloaded();
         }
@@ -366,12 +374,141 @@ if (!class_exists('SuperSpeedySettingsCore')) {
                 echo '<p class="description">' . esc_html( sprintf( __( 'Licence last checked: %s ago.', 'superspeedy' ), human_time_diff( $last ) ) ) . '</p>';
             }
         }
-        public function settings_intro() {
-            ?>
-            <p>Enter your license key below to enable plugin updates. </p>
-            <p>Please remember to renew your license to continue to support our small team so we can keep solving these WordPress performance issues.
-            <?php 
+        /** Slug and main file of the free diagnostic that leads this page. */
+        const SSPA_SLUG = 'super-speedy-performance-analysis';
+        const SSPA_FILE = 'super-speedy-performance-analysis/super-speedy-performance-analysis.php';
+
+        /** installed-and-active | installed | missing, for the panel below. */
+        protected function performance_analysis_state() {
+            if ( function_exists( 'sspa_default_options' ) ) {
+                return 'active';
+            }
+            return file_exists( WP_PLUGIN_DIR . '/' . self::SSPA_FILE ) ? 'inactive' : 'missing';
         }
+
+        /**
+         * Performance Analysis leads this page, always, in every plugin that bundles
+         * these settings. It is free, it is the diagnostic that says which plugin is
+         * actually costing the site time, and it is how a customer finds out which of
+         * the rest of the range would help. So it gets a panel at the top rather than
+         * a row in a licence table, and the panel is never dismissible.
+         *
+         * Nothing here is an admin notice: this is our own settings screen.
+         */
+        public function display_performance_analysis_panel() {
+            $state = $this->performance_analysis_state();
+            $nonce = wp_create_nonce( 'superspeedy_install_sspa' );
+            echo '<div class="superspeedy-sspa-panel superspeedy-sspa-' . esc_attr( $state ) . '">';
+
+            if ( 'active' === $state ) {
+                $summary = ( class_exists( 'SSPA_Report' ) && method_exists( 'SSPA_Report', 'summary' ) )
+                    ? SSPA_Report::summary()
+                    : null;
+                echo '<h2>' . esc_html__( 'Performance Analysis', 'super-speedy-settings' ) . '</h2>';
+                if ( is_array( $summary ) && null !== $summary['score'] ) {
+                    $when = ! empty( $summary['finished'] ) ? strtotime( $summary['finished'] . ' UTC' ) : 0;
+                    echo '<p class="superspeedy-sspa-score"><strong>' . esc_html( $summary['score'] ) . '/100</strong> ';
+                    if ( $when ) {
+                        printf(
+                            /* translators: %s: human readable time difference, e.g. "2 days". */
+                            esc_html__( 'measured %s ago', 'super-speedy-settings' ),
+                            esc_html( human_time_diff( $when ) )
+                        );
+                    }
+                    echo '</p>';
+                } else {
+                    echo '<p>' . esc_html__( 'Nothing analysed yet. Run one analysis to find out which plugin is costing this site the most time.', 'super-speedy-settings' ) . '</p>';
+                }
+                echo '<p><a class="button button-primary" href="' . esc_url( admin_url( 'admin.php?page=sspa' ) ) . '">'
+                    . esc_html__( 'Open Performance Analysis', 'super-speedy-settings' ) . '</a></p>';
+                echo '</div>';
+                return;
+            }
+
+            echo '<h2>' . esc_html__( 'Find out which plugin is actually slowing this site down', 'super-speedy-settings' ) . '</h2>';
+            echo '<p>' . esc_html__( 'Super Speedy Performance Analysis measures every plugin on this site and names the ones costing you SQL time, RAM and page speed, with the evidence. It is free, there is no licence key, and updates are free too.', 'super-speedy-settings' ) . '</p>';
+
+            if ( 'inactive' === $state ) {
+                $activate = wp_nonce_url(
+                    self_admin_url( 'plugins.php?action=activate&plugin=' . rawurlencode( self::SSPA_FILE ) ),
+                    'activate-plugin_' . self::SSPA_FILE
+                );
+                echo '<p><a class="button button-primary" href="' . esc_url( $activate ) . '">'
+                    . esc_html__( 'Activate Performance Analysis', 'super-speedy-settings' ) . '</a> '
+                    . esc_html__( 'It is already installed on this site.', 'super-speedy-settings' ) . '</p>';
+                echo '</div>';
+                return;
+            }
+
+            if ( current_user_can( 'install_plugins' ) ) {
+                echo '<p><button type="button" class="button button-primary" id="superspeedy-install-sspa" data-nonce="' . esc_attr( $nonce ) . '">'
+                    . esc_html__( 'Install it free', 'super-speedy-settings' ) . '</button> '
+                    . '<span class="superspeedy-sspa-status" role="status"></span></p>';
+            } else {
+                echo '<p><a class="button button-primary" href="https://github.com/superspeedyplugins/super-speedy-performance-analysis/releases/latest" target="_blank" rel="noopener">'
+                    . esc_html__( 'Download it free', 'super-speedy-settings' ) . '</a></p>';
+            }
+            echo '</div>';
+        }
+
+        /**
+         * Install Performance Analysis from its one allow-listed public package.
+         *
+         * Delegates to SSP_MCP::exec_install_plugin(), which is the single shared
+         * installer used by the agent surface and by Scalability Pro, so there is
+         * one implementation of download, validation and activation rather than three.
+         */
+        public function handle_install_performance_analysis() {
+            if ( ! current_user_can( 'install_plugins' ) || ! current_user_can( 'activate_plugins' ) ) {
+                wp_send_json_error( array( 'message' => __( 'You do not have permission to install plugins on this site.', 'super-speedy-settings' ) ), 403 );
+            }
+            if ( ! isset( $_POST['nonce'] ) || ! wp_verify_nonce( sanitize_text_field( wp_unslash( $_POST['nonce'] ) ), 'superspeedy_install_sspa' ) ) {
+                wp_send_json_error( array( 'message' => __( 'That request expired. Reload the page and try again.', 'super-speedy-settings' ) ), 400 );
+            }
+            if ( ! class_exists( 'SSP_MCP' ) ) {
+                wp_send_json_error( array( 'message' => __( 'The shared installer is not available in this copy of Super Speedy Settings.', 'super-speedy-settings' ) ), 500 );
+            }
+
+            $result = SSP_MCP::exec_install_plugin( array( 'slug' => self::SSPA_SLUG, 'activate' => true ) );
+            if ( is_wp_error( $result ) ) {
+                wp_send_json_error( array( 'message' => $result->get_error_message() ), 500 );
+            }
+            wp_send_json_success( array(
+                'message' => __( 'Installed. Opening Performance Analysis.', 'super-speedy-settings' ),
+                'redirect' => admin_url( 'admin.php?page=sspa' ),
+            ) );
+        }
+
+        public function settings_intro() {
+            // A licence key is for the PAID plugins. Free ones update without one, so
+            // this page must not tell every visitor they need a key.
+            ?>
+            <p>Enter your licence key below to enable updates for the paid Super Speedy plugins. The free ones, including Performance Analysis, update without a key.</p>
+            <p>If you hold a licence, please remember to renew it to continue to support our small team so we can keep solving these WordPress performance issues.</p>
+            <?php
+        }
+        /** Human wording for a licence result. Never print a raw error code at a user. */
+        protected function licence_status_label( $license ) {
+            $error = isset( $license['error'] ) ? strtolower( trim( (string) $license['error'] ) ) : '';
+            switch ( $error ) {
+                case '':
+                case 'ok':
+                case 'valid':
+                    return __( 'Licensed', 'super-speedy-settings' );
+                case 'invalid':
+                    return __( 'No licence key entered', 'super-speedy-settings' );
+                case 'expired':
+                    return __( 'Licence expired', 'super-speedy-settings' );
+                case 'not purchased':
+                    return __( 'Not purchased', 'super-speedy-settings' );
+            }
+            // Anything the licence server says that we do not recognise is shown as
+            // its own message rather than its code, and never as a bare token.
+            return isset( $license['message'] ) && '' !== trim( (string) $license['message'] )
+                ? (string) $license['message']
+                : __( 'Licence status unavailable', 'super-speedy-settings' );
+        }
+
         public function display_license_table( ) {
             $superspeedy_licenses = $this->getLicenses();
             $site_url = get_site_url();
@@ -379,77 +516,93 @@ if (!class_exists('SuperSpeedySettingsCore')) {
             $utm_source = parse_url($site_url, PHP_URL_HOST);
 
             $action = 'puc_check_for_updates';
-
-            // Get the nonce
             $nonce = wp_create_nonce($action);
-
-            // Construct the URL
             $update_plugin_url = admin_url('plugins.php') . "?puc_check_for_updates=1&_wpnonce=" . $nonce . "&puc_slug=";
 
-            // Top-of-table "Recheck Licenses" button — gives users a clear
-            // affordance after a renewal/upgrade without scrolling down to the
-            // licence-key field. Disabled until a key is entered/saved further
-            // down; JS keeps the disabled state in sync as the user types.
-            $options    = get_option('superspeedy_options');
-            $saved_key  = is_array($options) && !empty($options['superspeedy_field_licensekey']) ? $options['superspeedy_field_licensekey'] : '';
-            $btn_disabled = $saved_key === '' ? ' disabled' : '';
-            echo '<p class="superspeedy-recheck-row">';
-            echo '<button type="button" id="recheck-licenses-top" class="button button-primary"' . $btn_disabled . '>Recheck Licenses</button>';
-            echo ' <span class="description recheck-licenses-hint"' . ($saved_key === '' ? '' : ' style="display:none"') . '>Enter your licence key below and save settings to enable.</span>';
-            echo '</p>';
-
-            echo '<table class="superspeedy-plugins">';
-            echo '<thead><tr><th></th><th>Plugin Name</th><th>Installation Status</th><th>License Status</th><th>Changes</th><th>Docs</th><th>Live Support</th></tr></thead>';
-            echo '<tbody>';
-            
-            foreach($superspeedy_licenses as $slug => $ssp_license) {
-                $license = $this->check_license($slug);
-                if ($license['error'] == 'not installed') {
-                    echo '<tr class="not-installed">';
-                } else {
-                    if (empty($ssp_license['function']) || !function_exists($ssp_license['function'])) {
-                        echo '<tr class="deactivated">';
-                    } else {
-                        echo '<tr class="activated">';
-                    }
+            // Performance Analysis has its own panel at the top of this page, so it is
+            // never a row here. Everything else splits into what is on this site and
+            // what is not: a licence audit of plugins you have not bought is noise.
+            $installed = array();
+            $rest      = array();
+            foreach ( $superspeedy_licenses as $slug => $ssp_license ) {
+                if ( self::SSPA_SLUG === $slug ) {
+                    continue;
                 }
-                echo '<td><a href="' . esc_url('https://www.superspeedyplugins.com/product/' . $slug . '/') . '" target="_blank"><img src="' . esc_url(plugins_url('images/' . $slug . '.png', __FILE__)) . '" alt="' . esc_attr($ssp_license['name'] ?? '') . '" style="height: 50px; width: auto;"></a></td>';
-                echo '<td><span class="plugin-name-bold">' . esc_html($ssp_license['name'] ?? '') . '</span><br><a href="' . esc_url('https://www.superspeedyplugins.com/product/' . $slug . '/') . '" target="_blank" class="plugin-page-link">View ' . esc_html($ssp_license['name'] ?? '') . ' plugin page</a></td>';
-                
-    
-                if ($license['error'] == 'not installed') {
-                    echo '<td>Not installed</td>';
-                    echo '<td>Not checked</td>';
+                $license = $this->check_license( $slug );
+                if ( isset( $license['error'] ) && 'not installed' === $license['error'] ) {
+                    $rest[ $slug ] = $ssp_license;
                 } else {
-                    $active = (!empty($ssp_license['function']) && function_exists($ssp_license['function'])) ? "Activated" : "Deactivated";
-                    echo "<td>Installed / $active</td>";
-                    echo '<td>' . esc_html($license['error']) . '</td>';
+                    $installed[ $slug ] = array( 'info' => $ssp_license, 'license' => $license );
                 }
-            
-                if (isset($ssp_license['version'])) {
-                    $changes = $this->get_changes_since_version($slug, $ssp_license['version']);
-                    if (!$changes) {
-                        echo '<td>Unable to check for updates - please check your server allows remote URL requests</td>';
-                    } else {
-                        echo '<td>' . esc_html($changes["count"]) . ' changes since your last update<br /><a href="' . esc_url('https://www.superspeedyplugins.com/support/changelogs/' . $slug . '/?utm_source=' . urlencode($utm_source) . '&utm_content=plugin') . '" target="_blank">View Change log</a>';
-                        if ($changes["count"] > 0) {
-                            echo ' | <a href="' . esc_url($update_plugin_url . $slug) . '">Update Plugin</a>';
-                        }
-                        echo '</td>';
-                    }
-                } else {
-                    $changes = $this->get_changes_since_days($slug, 90);
-                    echo '<td>' . esc_html($changes["count"]) . ' changes in the last 90 days<br /><a href="' . esc_url('https://www.superspeedyplugins.com/support/changelogs/' . $slug . '/?utm_source=' . urlencode($utm_source) . '&utm_content=plugin') . '" target="_blank">View Change log</a></td>';
-                }
-                echo '<td><a href="' . esc_url('https://www.superspeedyplugins.com/kb/' . $slug . '/?utm_source=' . urlencode($utm_source) . '&utm_content=plugin') . '" target="_blank">Knowledge Base</a></td>';
-                echo '<td>' . (!empty($ssp_license['discord']) ? '<a href="' . esc_url($ssp_license['discord']) . '" target="_blank">Discord Channel</a>' : 'N/A') . '</td>';
-            
-                echo '</tr>';
             }
-            
-            echo '</tbody>';
-            echo '</table>';
-            echo '<p><strong>Please note:</strong> Our plugins must be activated in order to update them. If you wish to update them without activating them, you must download the latest zip from <a href="https://www.superspeedyplugins.com/my-account/downloads/?utm_source=' . urlencode($utm_source) . '&utm_content=plugin">your account</a> and upload the new zip file manually.</p>';
+
+            // The recheck control and the licence-key advice only mean anything when a
+            // licensed plugin is actually installed.
+            if ( ! empty( $installed ) ) {
+                $options    = get_option('superspeedy_options');
+                $saved_key  = is_array($options) && !empty($options['superspeedy_field_licensekey']) ? $options['superspeedy_field_licensekey'] : '';
+                $btn_disabled = $saved_key === '' ? ' disabled' : '';
+                echo '<p class="superspeedy-recheck-row">';
+                echo '<button type="button" id="recheck-licenses-top" class="button button-primary"' . $btn_disabled . '>Recheck Licenses</button>';
+                echo ' <span class="description recheck-licenses-hint"' . ($saved_key === '' ? '' : ' style="display:none"') . '>Enter your licence key below and save settings to enable.</span>';
+                echo '</p>';
+            }
+
+            if ( ! empty( $installed ) ) {
+                echo '<h2>' . esc_html__( 'On this site', 'super-speedy-settings' ) . '</h2>';
+                echo '<table class="superspeedy-plugins">';
+                echo '<thead><tr><th></th><th>Plugin Name</th><th>Installation Status</th><th>License Status</th><th>Changes</th><th>Docs</th><th>Live Support</th></tr></thead>';
+                echo '<tbody>';
+
+                foreach ( $installed as $slug => $row ) {
+                    $ssp_license = $row['info'];
+                    $license     = $row['license'];
+                    $is_active   = ( ! empty($ssp_license['function']) && function_exists($ssp_license['function']) );
+                    echo '<tr class="' . ( $is_active ? 'activated' : 'deactivated' ) . '">';
+                    echo '<td><a href="' . esc_url('https://www.superspeedyplugins.com/product/' . $slug . '/') . '" target="_blank"><img src="' . esc_url(plugins_url('images/' . $slug . '.png', __FILE__)) . '" alt="' . esc_attr($ssp_license['name'] ?? '') . '" style="height: 50px; width: auto;"></a></td>';
+                    echo '<td><span class="plugin-name-bold">' . esc_html($ssp_license['name'] ?? '') . '</span><br><a href="' . esc_url('https://www.superspeedyplugins.com/product/' . $slug . '/') . '" target="_blank" class="plugin-page-link">View ' . esc_html($ssp_license['name'] ?? '') . ' plugin page</a></td>';
+                    echo '<td>' . esc_html( $is_active ? __( 'Installed / Activated', 'super-speedy-settings' ) : __( 'Installed / Deactivated', 'super-speedy-settings' ) ) . '</td>';
+                    echo '<td>' . esc_html( $this->licence_status_label( $license ) ) . '</td>';
+
+                    if (isset($ssp_license['version'])) {
+                        $changes = $this->get_changes_since_version($slug, $ssp_license['version']);
+                        if (!$changes) {
+                            echo '<td>Unable to check for updates - please check your server allows remote URL requests</td>';
+                        } else {
+                            echo '<td>' . esc_html($changes["count"]) . ' changes since your last update<br /><a href="' . esc_url('https://www.superspeedyplugins.com/support/changelogs/' . $slug . '/?utm_source=' . urlencode($utm_source) . '&utm_content=plugin') . '" target="_blank">View Change log</a>';
+                            if ($changes["count"] > 0) {
+                                echo ' | <a href="' . esc_url($update_plugin_url . $slug) . '">Update Plugin</a>';
+                            }
+                            echo '</td>';
+                        }
+                    } else {
+                        $changes = $this->get_changes_since_days($slug, 90);
+                        echo '<td>' . esc_html($changes["count"]) . ' changes in the last 90 days<br /><a href="' . esc_url('https://www.superspeedyplugins.com/support/changelogs/' . $slug . '/?utm_source=' . urlencode($utm_source) . '&utm_content=plugin') . '" target="_blank">View Change log</a></td>';
+                    }
+                    echo '<td><a href="' . esc_url('https://www.superspeedyplugins.com/kb/' . $slug . '/?utm_source=' . urlencode($utm_source) . '&utm_content=plugin') . '" target="_blank">Knowledge Base</a></td>';
+                    echo '<td>' . (!empty($ssp_license['discord']) ? '<a href="' . esc_url($ssp_license['discord']) . '" target="_blank">Discord Channel</a>' : 'N/A') . '</td>';
+                    echo '</tr>';
+                }
+
+                echo '</tbody></table>';
+                echo '<p><strong>Please note:</strong> Our plugins must be activated in order to update them. If you wish to update them without activating them, you must download the latest zip from <a href="https://www.superspeedyplugins.com/my-account/downloads/?utm_source=' . urlencode($utm_source) . '&utm_content=plugin">your account</a> and upload the new zip file manually.</p>';
+            }
+
+            if ( ! empty( $rest ) ) {
+                echo '<h2>' . esc_html__( 'The rest of the range', 'super-speedy-settings' ) . '</h2>';
+                echo '<table class="superspeedy-plugins superspeedy-plugins-range">';
+                echo '<tbody>';
+                foreach ( $rest as $slug => $ssp_license ) {
+                    $product = 'https://www.superspeedyplugins.com/product/' . $slug . '/?utm_source=' . urlencode($utm_source) . '&utm_content=plugin';
+                    echo '<tr class="not-installed">';
+                    echo '<td><a href="' . esc_url($product) . '" target="_blank"><img src="' . esc_url(plugins_url('images/' . $slug . '.png', __FILE__)) . '" alt="' . esc_attr($ssp_license['name'] ?? '') . '" style="height: 50px; width: auto;"></a></td>';
+                    echo '<td><span class="plugin-name-bold">' . esc_html($ssp_license['name'] ?? '') . '</span></td>';
+                    echo '<td><a href="' . esc_url($product) . '" target="_blank">' . esc_html__( 'View plugin page', 'super-speedy-settings' ) . '</a></td>';
+                    echo '<td><a href="' . esc_url('https://www.superspeedyplugins.com/kb/' . $slug . '/?utm_source=' . urlencode($utm_source) . '&utm_content=plugin') . '" target="_blank">' . esc_html__( 'Knowledge Base', 'super-speedy-settings' ) . '</a></td>';
+                    echo '</tr>';
+                }
+                echo '</tbody></table>';
+            }
         }
         public function field_licensekey_cb( $args ) {
             // Get the value of the setting we've registered with register_setting()
