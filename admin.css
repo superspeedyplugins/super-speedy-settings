@@ -167,13 +167,22 @@ table.superspeedy-plugins td:first-child img {
     font-style: italic;
 }
 
-/* Performance Analysis launcher buttons. Disabled entries are deliberate: they show what
-   the plugin can measure before it is installed, so the list itself makes the case. */
-.superspeedy-sspa-actions { margin: 12px 0 6px; padding: 0; list-style: none; }
-.superspeedy-sspa-actions li { margin: 0 0 8px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
-.superspeedy-sspa-actions .button { min-width: 240px; text-align: center; }
+/* Performance Analysis panel: header with the one primary action top right, then the score
+   on the left and everything else beside it. Disabled buttons are deliberate - they show
+   what the plugin can measure before it is installed, so the row itself makes the case. */
+.superspeedy-sspa-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; }
+.superspeedy-sspa-head h2 { margin: 0 0 4px; }
+.superspeedy-sspa-intro p { margin: 0; max-width: 70em; }
+.superspeedy-sspa-primary { flex: 0 0 auto; }
+.superspeedy-sspa-body { display: flex; align-items: flex-start; gap: 24px; margin-top: 14px; flex-wrap: wrap; }
+.superspeedy-sspa-main { flex: 1 1 30em; }
+.superspeedy-sspa-scorebox { flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-start;
+    padding: 10px 18px 10px 0; border-right: 1px solid #e3e3e6; min-width: 190px; }
+.superspeedy-sspa-scorelabel { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; opacity: .7; }
+.superspeedy-sspa-scorevalue { font-size: 40px; line-height: 1.1; font-weight: 600; color: #6b46c1; }
+.superspeedy-sspa-scoremax { font-size: 18px; font-weight: 400; opacity: .6; }
+.superspeedy-sspa-scorehelp { font-size: 12px; margin-top: 2px; }
+.superspeedy-sspa-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 0; }
 .superspeedy-sspa-actions .button.disabled { opacity: .55; cursor: not-allowed; pointer-events: none; }
-.superspeedy-sspa-actions .description { flex: 1 1 22em; max-width: 60em; }
-.superspeedy-sspa-actions .description em { font-style: normal; opacity: .75; }
-.superspeedy-sspa-headline { margin: 4px 0 10px; }
+.superspeedy-sspa-headline { margin: 0 0 6px; }
 .superspeedy-sspa-headline code { font-size: 12px; }

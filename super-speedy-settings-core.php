@@ -23,7 +23,7 @@ if ( class_exists( 'SuperSpeedySettingsCore', false ) || ! empty( $GLOBALS['ssp_
 }
 $GLOBALS['ssp_settings_core_bootstrapped'] = true;
 $GLOBALS['ssp_settings_selected_dir'] = __DIR__;
-$GLOBALS['ssp_settings_selected_version'] = '1.12.0';
+$GLOBALS['ssp_settings_selected_version'] = '1.13.0';
 
 require_once __DIR__ . '/abstract-class-super-speedy-settings.php';
 if ( is_admin() ) {
@@ -82,7 +82,7 @@ if (!class_exists('SuperSpeedySettingsCore')) {
         // &sv= (distinct from a plugin's own build, sent as v=). Lets auth see which
         // sites run stale settings code (e.g. still checking www, or missing a param).
         // Bump this whenever the settings code changes in a way worth tracking.
-        const SETTINGS_VERSION = '1.12.0';
+        const SETTINGS_VERSION = '1.13.0';
         private $update_checkers = array();
         
         
@@ -576,75 +576,111 @@ if (!class_exists('SuperSpeedySettingsCore')) {
                 ? __('Install Performance Analysis to use this', 'super-speedy-settings')
                 : (('inactive' === $state) ? __('Activate Performance Analysis to use this', 'super-speedy-settings') : '');
 
-            echo '<ul class="superspeedy-sspa-actions">';
+            // Labels only, in a row. The explanation each one used to carry lives in the
+            // hover title: four buttons read as four things you can do, four paragraphs read
+            // as a wall. The reason a disabled one is disabled stays visible on hover too,
+            // because a dead-looking button with no explanation is the thing to avoid.
+            echo '<div class="superspeedy-sspa-actions">';
             foreach ($actions as $action) {
                 $blocked = !empty($action['blocked']) ? $action['blocked'] : $reason;
-                echo '<li>';
-                if (!empty($action['enabled'])) {
-                    echo '<a class="button" href="' . esc_url($action['href']) . '">' . esc_html($action['label']) . '</a>';
-                } else {
-                    echo '<span class="button disabled" aria-disabled="true">' . esc_html($action['label']) . '</span>';
-                }
-                echo ' <span class="description">' . esc_html($action['why']);
+                $title = $action['why'];
                 if (empty($action['enabled']) && '' !== $blocked) {
-                    echo ' <em>' . esc_html($blocked) . '.</em>';
+                    $title .= ' (' . $blocked . ')';
                 }
-                echo '</span></li>';
+                if (!empty($action['enabled'])) {
+                    echo '<a class="button" href="' . esc_url($action['href']) . '" title="' . esc_attr($title) . '">' . esc_html($action['label']) . '</a>';
+                } else {
+                    echo '<span class="button disabled" aria-disabled="true" title="' . esc_attr($title) . '">' . esc_html($action['label']) . '</span>';
+                }
             }
-            echo '</ul>';
+            echo '</div>';
+        }
+
+        /** The single primary action, which sits top right whatever state we are in. */
+        protected function performance_analysis_primary($state) {
+            if ('active' === $state) {
+                return '<a class="button button-primary" href="' . esc_url(admin_url('admin.php?page=sspa')) . '">'
+                    . esc_html__('Open Performance Analysis', 'super-speedy-settings') . '</a>';
+            }
+            if ('inactive' === $state) {
+                $activate = wp_nonce_url(
+                    self_admin_url('plugins.php?action=activate&plugin=' . rawurlencode(self::SSPA_FILE)),
+                    'activate-plugin_' . self::SSPA_FILE
+                );
+                return '<a class="button button-primary" href="' . esc_url($activate) . '">'
+                    . esc_html__('Activate Performance Analysis', 'super-speedy-settings') . '</a>';
+            }
+            if (current_user_can('install_plugins')) {
+                return '<button type="button" class="button button-primary" id="superspeedy-install-sspa" data-nonce="'
+                    . esc_attr(wp_create_nonce('superspeedy_install_sspa')) . '">'
+                    . esc_html__('Install it free', 'super-speedy-settings') . '</button>'
+                    . ' <span class="superspeedy-sspa-status" role="status"></span>';
+            }
+            return '<a class="button button-primary" href="https://github.com/superspeedyplugins/super-speedy-performance-analysis/releases/latest" target="_blank" rel="noopener">'
+                . esc_html__('Download it free', 'super-speedy-settings') . '</a>';
         }
 
         public function display_performance_analysis_panel() {
             $state = $this->performance_analysis_state();
-            $nonce = wp_create_nonce('superspeedy_install_sspa');
+            $active = ('active' === $state);
+
+            $summary = ($active && class_exists('SSPA_Report') && method_exists('SSPA_Report', 'summary'))
+                ? SSPA_Report::summary()
+                : null;
+            $score = (is_array($summary) && null !== $summary['score']) ? (int) $summary['score'] : null;
+
             echo '<div class="superspeedy-sspa-panel superspeedy-sspa-' . esc_attr($state) . '">';
 
-            if ('active' === $state) {
-                $summary = (class_exists('SSPA_Report') && method_exists('SSPA_Report', 'summary'))
-                    ? SSPA_Report::summary()
-                    : null;
-                $pages = (class_exists('SSPA_Report') && method_exists('SSPA_Report', 'page_analysis_count'))
-                    ? SSPA_Report::page_analysis_count()
-                    : 0;
-                echo '<h2>' . esc_html__('Performance Analysis', 'super-speedy-settings') . '</h2>';
+            // Header: what it is, and the one primary action, top right.
+            echo '<div class="superspeedy-sspa-head">';
+            echo '<div class="superspeedy-sspa-intro">';
+            echo '<h2>' . esc_html__('Performance Analysis', 'super-speedy-settings') . '</h2>';
+            echo '<p>' . esc_html__('Super Speedy Performance Analysis is the latest free tool that every WordPress site needs to instantly identify your performance bottlenecks.', 'super-speedy-settings') . '</p>';
+            echo '</div>';
+            echo '<div class="superspeedy-sspa-primary">' . $this->performance_analysis_primary($state) . '</div>'; // phpcs:ignore WordPress.Security.EscapeOutput -- built escaped above.
+            echo '</div>';
 
-                if (is_array($summary) && null !== $summary['score']) {
-                    $when = !empty($summary['finished']) ? strtotime($summary['finished'] . ' UTC') : 0;
-                    echo '<p class="superspeedy-sspa-score"><strong>' . esc_html($summary['score']) . '/100</strong> ';
-                    if ($when) {
+            echo '<div class="superspeedy-sspa-body">';
+
+            // The score, to the left of everything else.
+            if (null !== $score) {
+                echo '<div class="superspeedy-sspa-scorebox">';
+                echo '<span class="superspeedy-sspa-scorelabel">' . esc_html__('Your latest site score', 'super-speedy-settings') . '</span>';
+                echo '<span class="superspeedy-sspa-scorevalue">' . esc_html($score) . '<span class="superspeedy-sspa-scoremax">/100</span></span>';
+                echo '<a class="superspeedy-sspa-scorehelp" href="' . esc_url('https://www.superspeedyplugins.com/kb/super-speedy-performance-analysis/') . '" target="_blank" rel="noopener">'
+                    . esc_html__('Learn how to improve this score', 'super-speedy-settings') . '</a>';
+                echo '</div>';
+            }
+
+            echo '<div class="superspeedy-sspa-main">';
+
+            if ($active && null !== $score) {
+                $headline = method_exists('SSPA_Report', 'headline') ? SSPA_Report::headline() : null;
+                if (is_array($headline) && $headline['gen_ms'] > 0) {
+                    echo '<p class="superspeedy-sspa-headline">';
+                    if (!empty($headline['component']) && $headline['component_ms'] > 0) {
                         printf(
-                            /* translators: %s: human readable time difference, e.g. "2 days". */
-                            esc_html__('measured %s ago', 'super-speedy-settings'),
-                            esc_html(human_time_diff($when))
+                            /* translators: 1: page identifier, 2: milliseconds, 3: component name, 4: milliseconds. */
+                            esc_html__('Slowest page measured: %1$s at %2$sms, and %3$s accounts for %4$sms of it.', 'super-speedy-settings'),
+                            '<code>' . esc_html($headline['page_key']) . '</code>',
+                            esc_html(number_format_i18n($headline['gen_ms'])),
+                            '<strong>' . esc_html($headline['component']) . '</strong>',
+                            esc_html(number_format_i18n($headline['component_ms']))
+                        );
+                    } else {
+                        printf(
+                            /* translators: 1: page identifier, 2: milliseconds. */
+                            esc_html__('Slowest page measured: %1$s at %2$sms.', 'super-speedy-settings'),
+                            '<code>' . esc_html($headline['page_key']) . '</code>',
+                            esc_html(number_format_i18n($headline['gen_ms']))
                         );
                     }
                     echo '</p>';
-
-                    // The line that makes someone act, rather than a badge they stop seeing.
-                    $headline = method_exists('SSPA_Report', 'headline') ? SSPA_Report::headline() : null;
-                    if (is_array($headline) && $headline['gen_ms'] > 0) {
-                        echo '<p class="superspeedy-sspa-headline">';
-                        if (!empty($headline['component']) && $headline['component_ms'] > 0) {
-                            printf(
-                                /* translators: 1: page identifier, 2: milliseconds, 3: component name, 4: milliseconds. */
-                                esc_html__('Slowest page measured: %1$s at %2$sms, and %3$s accounts for %4$sms of it.', 'super-speedy-settings'),
-                                '<code>' . esc_html($headline['page_key']) . '</code>',
-                                esc_html(number_format_i18n($headline['gen_ms'])),
-                                '<strong>' . esc_html($headline['component']) . '</strong>',
-                                esc_html(number_format_i18n($headline['component_ms']))
-                            );
-                        } else {
-                            printf(
-                                /* translators: 1: page identifier, 2: milliseconds. */
-                                esc_html__('Slowest page measured: %1$s at %2$sms.', 'super-speedy-settings'),
-                                '<code>' . esc_html($headline['page_key']) . '</code>',
-                                esc_html(number_format_i18n($headline['gen_ms']))
-                            );
-                        }
-                        echo '</p>';
-                    }
-                } elseif ($pages) {
-                    echo '<p>' . esc_html(sprintf(
+                }
+            } elseif ($active) {
+                $pages = method_exists('SSPA_Report', 'page_analysis_count') ? SSPA_Report::page_analysis_count() : 0;
+                echo '<p>' . esc_html($pages
+                    ? sprintf(
                         /* translators: %d: number of single pages already analysed. */
                         _n(
                             '%d page analysed so far. A site-wide analysis gives you a score and finds the plugins costing you the most across every key page.',
@@ -653,44 +689,14 @@ if (!class_exists('SuperSpeedySettingsCore')) {
                             'super-speedy-settings'
                         ),
                         $pages
-                    )) . '</p>';
-                } else {
-                    echo '<p>' . esc_html__('Nothing analysed yet. Run one analysis to find out which plugin is costing this site the most time.', 'super-speedy-settings') . '</p>';
-                }
-
-                $this->render_performance_analysis_actions($state);
-                echo '<p><a class="button button-primary" href="' . esc_url(admin_url('admin.php?page=sspa')) . '">'
-                    . esc_html__('Open Performance Analysis', 'super-speedy-settings') . '</a></p>';
-                echo '</div>';
-                return;
+                    )
+                    : __('Nothing analysed yet. Run one analysis to find out which plugin is costing this site the most time.', 'super-speedy-settings')
+                ) . '</p>';
             }
-
-            echo '<h2>' . esc_html__('Find out which plugin is actually slowing this site down', 'super-speedy-settings') . '</h2>';
-            echo '<p>' . esc_html__('Super Speedy Performance Analysis measures every plugin on this site and names the ones costing you SQL time, RAM and page speed, with the evidence. It is free, there is no licence key, and updates are free too.', 'super-speedy-settings') . '</p>';
 
             $this->render_performance_analysis_actions($state);
 
-            if ('inactive' === $state) {
-                $activate = wp_nonce_url(
-                    self_admin_url('plugins.php?action=activate&plugin=' . rawurlencode(self::SSPA_FILE)),
-                    'activate-plugin_' . self::SSPA_FILE
-                );
-                echo '<p><a class="button button-primary" href="' . esc_url($activate) . '">'
-                    . esc_html__('Activate Performance Analysis', 'super-speedy-settings') . '</a> '
-                    . esc_html__('It is already installed on this site.', 'super-speedy-settings') . '</p>';
-                echo '</div>';
-                return;
-            }
-
-            if (current_user_can('install_plugins')) {
-                echo '<p><button type="button" class="button button-primary" id="superspeedy-install-sspa" data-nonce="' . esc_attr($nonce) . '">'
-                    . esc_html__('Install it free', 'super-speedy-settings') . '</button> '
-                    . '<span class="superspeedy-sspa-status" role="status"></span></p>';
-            } else {
-                echo '<p><a class="button button-primary" href="https://github.com/superspeedyplugins/super-speedy-performance-analysis/releases/latest" target="_blank" rel="noopener">'
-                    . esc_html__('Download it free', 'super-speedy-settings') . '</a></p>';
-            }
-            echo '</div>';
+            echo '</div></div></div>';
         }
 
         /**
