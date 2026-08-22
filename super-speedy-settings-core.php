@@ -23,7 +23,7 @@ if ( class_exists( 'SuperSpeedySettingsCore', false ) || ! empty( $GLOBALS['ssp_
 }
 $GLOBALS['ssp_settings_core_bootstrapped'] = true;
 $GLOBALS['ssp_settings_selected_dir'] = __DIR__;
-$GLOBALS['ssp_settings_selected_version'] = '1.10.3';
+$GLOBALS['ssp_settings_selected_version'] = '1.10.4';
 
 require_once __DIR__ . '/abstract-class-super-speedy-settings.php';
 if ( is_admin() ) {
@@ -82,7 +82,7 @@ if (!class_exists('SuperSpeedySettingsCore')) {
         // &sv= (distinct from a plugin's own build, sent as v=). Lets auth see which
         // sites run stale settings code (e.g. still checking www, or missing a param).
         // Bump this whenever the settings code changes in a way worth tracking.
-        const SETTINGS_VERSION = '1.10.3';
+        const SETTINGS_VERSION = '1.10.4';
         private $update_checkers = array();
         
         
@@ -119,7 +119,19 @@ if (!class_exists('SuperSpeedySettingsCore')) {
             return preg_replace( '/[^a-z0-9]+/', '', (string) $title );
         }
 
-        /** Is the visitor on a screen where fetching changelog counts is worth the HTTP? */
+        /**
+         * Counts already cached for this plugin+version, WITHOUT any HTTP.
+         *
+         * This is what lets the bubble appear on every admin screen. Fetching is limited
+         * to the two screens that justify it (below), but once a count is cached every
+         * other screen can show it for the price of one transient read.
+         */
+        protected function cached_changes_count( $slug, $version ) {
+            $cached = get_transient( 'superspeedy_changes_' . $slug . '_' . $version );
+            return ( is_array( $cached ) && isset( $cached['count'] ) ) ? (int) $cached['count'] : null;
+        }
+
+        /** Is the visitor on a screen where FETCHING changelog counts is worth the HTTP? */
         protected function should_count_updates() {
             global $pagenow, $submenu;
             if ( 'plugins.php' === $pagenow ) {
@@ -156,9 +168,11 @@ if (!class_exists('SuperSpeedySettingsCore')) {
          */
         public function decorate_update_counts() {
             global $menu, $submenu;
-            if ( ! $this->should_count_updates() ) {
-                return;
-            }
+
+            // Fetch on the two screens that justify the HTTP; everywhere else, show what is
+            // already cached. Dave wants the bubble visible wherever he is in wp-admin, and
+            // a cached read costs nothing.
+            $may_fetch = $this->should_count_updates();
 
             $counts = array();
             $total  = 0;
@@ -166,12 +180,17 @@ if (!class_exists('SuperSpeedySettingsCore')) {
                 if ( ! isset( $ssp_license['version'] ) ) {
                     continue; // not active: nothing registered a version
                 }
-                $changes = $this->get_changes_since_version( $slug, $ssp_license['version'] );
-                if ( ! $changes || empty( $changes['count'] ) ) {
+                if ( $may_fetch ) {
+                    $changes = $this->get_changes_since_version( $slug, $ssp_license['version'] );
+                    $count   = ( is_array( $changes ) && isset( $changes['count'] ) ) ? (int) $changes['count'] : null;
+                } else {
+                    $count = $this->cached_changes_count( $slug, $ssp_license['version'] );
+                }
+                if ( ! $count ) {
                     continue;
                 }
-                $counts[ $slug ] = (int) $changes['count'];
-                $total          += (int) $changes['count'];
+                $counts[ $slug ] = $count;
+                $total          += $count;
             }
             if ( ! $total ) {
                 return;
