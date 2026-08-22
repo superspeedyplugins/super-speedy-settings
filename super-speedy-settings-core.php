@@ -23,7 +23,7 @@ if ( class_exists( 'SuperSpeedySettingsCore', false ) || ! empty( $GLOBALS['ssp_
 }
 $GLOBALS['ssp_settings_core_bootstrapped'] = true;
 $GLOBALS['ssp_settings_selected_dir'] = __DIR__;
-$GLOBALS['ssp_settings_selected_version'] = '1.13.0';
+$GLOBALS['ssp_settings_selected_version'] = '1.14.0';
 
 require_once __DIR__ . '/abstract-class-super-speedy-settings.php';
 if ( is_admin() ) {
@@ -82,7 +82,7 @@ if (!class_exists('SuperSpeedySettingsCore')) {
         // &sv= (distinct from a plugin's own build, sent as v=). Lets auth see which
         // sites run stale settings code (e.g. still checking www, or missing a param).
         // Bump this whenever the settings code changes in a way worth tracking.
-        const SETTINGS_VERSION = '1.13.0';
+        const SETTINGS_VERSION = '1.14.0';
         private $update_checkers = array();
         
         
@@ -772,15 +772,13 @@ if (!class_exists('SuperSpeedySettingsCore')) {
             $nonce = wp_create_nonce($action);
             $update_plugin_url = admin_url('plugins.php') . "?puc_check_for_updates=1&_wpnonce=" . $nonce . "&puc_slug=";
 
-            // Performance Analysis has its own panel at the top of this page, so it is
-            // never a row here. Everything else splits into what is on this site and
-            // what is not: a licence audit of plugins you have not bought is noise.
+            // Two sections: what is on this site, and the range. A licence audit of plugins
+            // you have not bought is noise, so unowned products get a browsable row rather
+            // than a status column. Performance Analysis appears here like everything else,
+            // as well as in its own panel above.
             $installed = array();
             $rest      = array();
             foreach ( $superspeedy_licenses as $slug => $ssp_license ) {
-                if ( self::SSPA_SLUG === $slug ) {
-                    continue;
-                }
                 $license = $this->check_license( $slug );
                 if ( isset( $license['error'] ) && 'not installed' === $license['error'] ) {
                     $rest[ $slug ] = $ssp_license;
@@ -812,10 +810,18 @@ if (!class_exists('SuperSpeedySettingsCore')) {
                     $license     = $row['license'];
                     $is_active   = ( ! empty($ssp_license['function']) && function_exists($ssp_license['function']) );
                     echo '<tr class="' . ( $is_active ? 'activated' : 'deactivated' ) . '">';
-                    echo '<td><a href="' . esc_url('https://www.superspeedyplugins.com/product/' . $slug . '/') . '" target="_blank"><img src="' . esc_url(plugins_url('images/' . $slug . '.png', __FILE__)) . '" alt="' . esc_attr($ssp_license['name'] ?? '') . '" style="height: 50px; width: auto;"></a></td>';
+                    echo '<td>';
+                    if ( file_exists( __DIR__ . '/images/' . $slug . '.png' ) ) {
+                        echo '<a href="' . esc_url('https://www.superspeedyplugins.com/product/' . $slug . '/') . '" target="_blank"><img src="' . esc_url(plugins_url('images/' . $slug . '.png', __FILE__)) . '" alt="' . esc_attr($ssp_license['name'] ?? '') . '" style="height: 50px; width: auto;"></a>';
+                    }
+                    echo '</td>';
                     echo '<td><span class="plugin-name-bold">' . esc_html($ssp_license['name'] ?? '') . '</span><br><a href="' . esc_url('https://www.superspeedyplugins.com/product/' . $slug . '/') . '" target="_blank" class="plugin-page-link">View ' . esc_html($ssp_license['name'] ?? '') . ' plugin page</a></td>';
                     echo '<td>' . esc_html( $is_active ? __( 'Installed / Activated', 'super-speedy-settings' ) : __( 'Installed / Deactivated', 'super-speedy-settings' ) ) . '</td>';
-                    echo '<td>' . esc_html( $this->licence_status_label( $license ) ) . '</td>';
+                    echo '<td>' . esc_html(
+                        ! empty( $ssp_license['free'] )
+                            ? __( 'Free - no key needed', 'super-speedy-settings' )
+                            : $this->licence_status_label( $license )
+                    ) . '</td>';
 
                     if (isset($ssp_license['version'])) {
                         $changes = $this->get_changes_since_version($slug, $ssp_license['version']);
@@ -842,13 +848,17 @@ if (!class_exists('SuperSpeedySettingsCore')) {
             }
 
             if ( ! empty( $rest ) ) {
-                echo '<h2>' . esc_html__( 'The rest of the range', 'super-speedy-settings' ) . '</h2>';
+                echo '<h2>' . esc_html__( 'The Super Speedy Plugins Range', 'super-speedy-settings' ) . '</h2>';
                 echo '<table class="superspeedy-plugins superspeedy-plugins-range">';
                 echo '<tbody>';
                 foreach ( $rest as $slug => $ssp_license ) {
                     $product = 'https://www.superspeedyplugins.com/product/' . $slug . '/?utm_source=' . urlencode($utm_source) . '&utm_content=plugin';
                     echo '<tr class="not-installed">';
-                    echo '<td><a href="' . esc_url($product) . '" target="_blank"><img src="' . esc_url(plugins_url('images/' . $slug . '.png', __FILE__)) . '" alt="' . esc_attr($ssp_license['name'] ?? '') . '" style="height: 50px; width: auto;"></a></td>';
+                    echo '<td>';
+                    if ( file_exists( __DIR__ . '/images/' . $slug . '.png' ) ) {
+                        echo '<a href="' . esc_url($product) . '" target="_blank"><img src="' . esc_url(plugins_url('images/' . $slug . '.png', __FILE__)) . '" alt="' . esc_attr($ssp_license['name'] ?? '') . '" style="height: 50px; width: auto;"></a>';
+                    }
+                    echo '</td>';
                     echo '<td><span class="plugin-name-bold">' . esc_html($ssp_license['name'] ?? '') . '</span></td>';
                     echo '<td><a href="' . esc_url($product) . '" target="_blank">' . esc_html__( 'View plugin page', 'super-speedy-settings' ) . '</a></td>';
                     echo '<td><a href="' . esc_url('https://www.superspeedyplugins.com/kb/' . $slug . '/?utm_source=' . urlencode($utm_source) . '&utm_content=plugin') . '" target="_blank">' . esc_html__( 'Knowledge Base', 'super-speedy-settings' ) . '</a></td>';
