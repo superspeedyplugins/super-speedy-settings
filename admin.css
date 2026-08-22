@@ -166,3 +166,14 @@ table.superspeedy-plugins td:first-child img {
     margin-left: 10px;
     font-style: italic;
 }
+
+/* Performance Analysis launcher buttons. Disabled entries are deliberate: they show what
+   the plugin can measure before it is installed, so the list itself makes the case. */
+.superspeedy-sspa-actions { margin: 12px 0 6px; padding: 0; list-style: none; }
+.superspeedy-sspa-actions li { margin: 0 0 8px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.superspeedy-sspa-actions .button { min-width: 240px; text-align: center; }
+.superspeedy-sspa-actions .button.disabled { opacity: .55; cursor: not-allowed; pointer-events: none; }
+.superspeedy-sspa-actions .description { flex: 1 1 22em; max-width: 60em; }
+.superspeedy-sspa-actions .description em { font-style: normal; opacity: .75; }
+.superspeedy-sspa-headline { margin: 4px 0 10px; }
+.superspeedy-sspa-headline code { font-size: 12px; }
