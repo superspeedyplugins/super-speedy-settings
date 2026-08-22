@@ -23,7 +23,7 @@ if ( class_exists( 'SuperSpeedySettingsCore', false ) || ! empty( $GLOBALS['ssp_
 }
 $GLOBALS['ssp_settings_core_bootstrapped'] = true;
 $GLOBALS['ssp_settings_selected_dir'] = __DIR__;
-$GLOBALS['ssp_settings_selected_version'] = '1.9.0';
+$GLOBALS['ssp_settings_selected_version'] = '1.10.0';
 
 require_once __DIR__ . '/abstract-class-super-speedy-settings.php';
 if ( is_admin() ) {
@@ -82,28 +82,16 @@ if (!class_exists('SuperSpeedySettingsCore')) {
         // &sv= (distinct from a plugin's own build, sent as v=). Lets auth see which
         // sites run stale settings code (e.g. still checking www, or missing a param).
         // Bump this whenever the settings code changes in a way worth tracking.
-        const SETTINGS_VERSION = '1.9.0';
+        const SETTINGS_VERSION = '1.10.0';
         private $update_checkers = array();
         
         
         public function register_menu() {
-            $superspeedy_licenses = $this->getLicenses();
-            $total_changes = 0;
-            // Changelog HTTP requests are only relevant on our settings screen
-            // and the Plugins list. Other wp-admin screens get a plain menu title.
-            if ( $this->should_fetch_changelogs() ) {
-                foreach ($superspeedy_licenses as $slug => $ssp_license) {
-                    if (isset($ssp_license['version'])) { // checks if the plugin is active
-                        $changes = $this->get_changes_since_version($slug, $ssp_license['version']);
-                        if ($changes) {
-                            $total_changes += $changes['count'];
-                        }
-                    }
-                }
-            }
-            // Generate menu title, add bubble if there are updates
-            $menu_title = 'Super Speedy ' . ($total_changes ? ' <span class="update-plugins count-' . $total_changes . '"><span class="plugin-count">' . $total_changes . '</span></span>' : '');
-    
+            // The plain title. The update-count bubble is added by decorate_update_counts()
+            // at admin_menu priority 999, once every plugin has registered its submenu, so
+            // that the count can sit per-plugin when the menu is open.
+            $menu_title = 'Super Speedy';
+
             add_menu_page(
                 'Super Speedy Settings',
                 $menu_title,
@@ -113,6 +101,125 @@ if (!class_exists('SuperSpeedySettingsCore')) {
                 plugins_url('super-speedy.png', __FILE__)
             );
         }
+        /** The bubble markup wp-admin already styles for plugin update counts. */
+        protected function update_count_bubble( $count ) {
+            $count = (int) $count;
+            return ' <span class="update-plugins count-' . $count . '"><span class="plugin-count">' . $count . '</span></span>';
+        }
+
+        /**
+         * Titles are matched loosely because a submenu item is labelled "Imports" while the
+         * plugin is "Super Speedy Imports", and the page slugs are inconsistent
+         * (`scalabilitypro`, `super-speedy-imports`, `sspa`). Strip the shared prefix and
+         * everything that is not a letter or a digit, then compare.
+         */
+        protected function normalise_menu_title( $title ) {
+            $title = strtolower( trim( strip_tags( (string) $title ) ) );
+            $title = preg_replace( '/^super\s*speedy\s*/', '', $title );
+            return preg_replace( '/[^a-z0-9]+/', '', (string) $title );
+        }
+
+        /** Is the visitor on a screen where fetching changelog counts is worth the HTTP? */
+        protected function should_count_updates() {
+            global $pagenow, $submenu;
+            if ( 'plugins.php' === $pagenow ) {
+                return true;
+            }
+            if ( 'admin.php' !== $pagenow || ! isset( $_GET['page'] ) ) {
+                return false;
+            }
+            $page = sanitize_key( wp_unslash( $_GET['page'] ) );
+            if ( self::$menu_slug === $page ) {
+                return true;
+            }
+            foreach ( (array) ( isset( $submenu[ self::$menu_slug ] ) ? $submenu[ self::$menu_slug ] : array() ) as $item ) {
+                if ( isset( $item[2] ) && $item[2] === $page ) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /** Is the Super Speedy menu the open one, so its submenu is on screen? */
+        protected function superspeedy_menu_is_open() {
+            global $pagenow, $submenu;
+            if ( 'admin.php' !== $pagenow || ! isset( $_GET['page'] ) ) {
+                return false;
+            }
+            $page = sanitize_key( wp_unslash( $_GET['page'] ) );
+            if ( self::$menu_slug === $page ) {
+                return true;
+            }
+            foreach ( (array) ( isset( $submenu[ self::$menu_slug ] ) ? $submenu[ self::$menu_slug ] : array() ) as $item ) {
+                if ( isset( $item[2] ) && $item[2] === $page ) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /**
+         * Place the update counts, once every plugin has registered its submenu.
+         *
+         * Closed menu: one aggregate bubble on "Super Speedy", which is the only thing
+         * visible. Open menu: no aggregate, and each plugin's own count against its own
+         * submenu item, because at that point the aggregate says less than the parts.
+         *
+         * Counts come from the changelog feed and are only fetched on screens where they
+         * are shown, so no other wp-admin page pays for the HTTP. Only INSTALLED AND ACTIVE
+         * plugins are counted - an inactive one has no registered version.
+         */
+        public function decorate_update_counts() {
+            global $menu, $submenu;
+            if ( ! $this->should_count_updates() ) {
+                return;
+            }
+
+            $counts = array();
+            $total  = 0;
+            foreach ( $this->getLicenses() as $slug => $ssp_license ) {
+                if ( ! isset( $ssp_license['version'] ) ) {
+                    continue; // not active: nothing registered a version
+                }
+                $changes = $this->get_changes_since_version( $slug, $ssp_license['version'] );
+                if ( ! $changes || empty( $changes['count'] ) ) {
+                    continue;
+                }
+                $counts[ $slug ] = (int) $changes['count'];
+                $total          += (int) $changes['count'];
+            }
+            if ( ! $total ) {
+                return;
+            }
+
+            if ( ! $this->superspeedy_menu_is_open() ) {
+                foreach ( (array) $menu as $index => $item ) {
+                    if ( isset( $item[2] ) && self::$menu_slug === $item[2] ) {
+                        $menu[ $index ][0] .= $this->update_count_bubble( $total );
+                        break;
+                    }
+                }
+                return;
+            }
+
+            // Open: the count belongs against each plugin, so you can see WHICH one moved.
+            $names = array();
+            foreach ( $this->getLicenses() as $slug => $ssp_license ) {
+                if ( isset( $counts[ $slug ] ) && ! empty( $ssp_license['name'] ) ) {
+                    $names[ $this->normalise_menu_title( $ssp_license['name'] ) ] = $slug;
+                }
+            }
+            foreach ( (array) ( isset( $submenu[ self::$menu_slug ] ) ? $submenu[ self::$menu_slug ] : array() ) as $index => $item ) {
+                if ( ! isset( $item[0] ) ) {
+                    continue;
+                }
+                $key = $this->normalise_menu_title( $item[0] );
+                if ( isset( $names[ $key ] ) ) {
+                    $submenu[ self::$menu_slug ][ $index ][0] .= $this->update_count_bubble( $counts[ $names[ $key ] ] );
+                }
+            }
+        }
+
         public function display_settings_page() {
             // check user capabilities
         
@@ -194,6 +301,9 @@ if (!class_exists('SuperSpeedySettingsCore')) {
             if ( is_admin() ) {
                 $this->ssp_initialize_updaters();
             }
+            // Late, so every Super Speedy plugin has registered its submenu by the time
+            // the counts are placed. 999 rather than the default 10 for that reason.
+            add_action( 'admin_menu', array($this, 'decorate_update_counts'), 999 );
             add_action( 'admin_init', array($this, 'settings_init') );
             add_action('wp_error_added', array($this, 'handle_wp_error_added'), 10, 4);
             add_action( 'admin_enqueue_scripts', array($this, 'enqueue_admin_script'));
@@ -769,6 +879,21 @@ if (!class_exists('SuperSpeedySettingsCore')) {
         }
         public function add_license_to_remote_update_request($update) {
             if (!isset($update->download_url)) return $update;
+
+            // A free plugin with an approved public package is downloaded from that exact
+            // url and carries NO licence credentials. The feed still supplies the version,
+            // so the site is told what to install by superspeedyplugins.com and fetches it
+            // from the public release. Without this the free plugins inherit the licensed
+            // download url and a keyless site gets a 403 where it used to get an update.
+            $ssp_free_slug = isset($update->slug) ? (string) $update->slug : '';
+            if ($ssp_free_slug && class_exists('SSP_MCP') && method_exists('SSP_MCP', 'public_packages')) {
+                $ssp_public = SSP_MCP::public_packages();
+                if (isset($ssp_public[$ssp_free_slug])) {
+                    $update->download_url = (string) $ssp_public[$ssp_free_slug];
+                    return $update;
+                }
+            }
+
             // ALWAYS append the licence credentials. This used to be gated on the
             // call stack containing wp_update_plugins / wp_ajax_update_plugin,
             // which left every other update flow (auto-updates, bulk updates,
