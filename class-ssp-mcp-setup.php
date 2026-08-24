@@ -297,6 +297,26 @@ if ( ! class_exists( 'SSP_MCP_Setup' ) ) {
             wp_send_json_success( array( 'message' => __( 'The Super Speedy MCP Application Password has been revoked.', 'super-speedy-settings' ) ) );
         }
 
+        /** Human-readable description of the code which supplied the Adapter. */
+        public static function provider_label( $adapter ) {
+            $provider = isset( $adapter['provider'] ) ? $adapter['provider'] : 'unavailable';
+            $labels   = array(
+                'official-plugin'   => __( 'Official MCP Adapter plugin', 'super-speedy-settings' ),
+                'external-composer' => __( 'Official MCP Adapter supplied by a Composer package', 'super-speedy-settings' ),
+                'bundled'           => __( 'Official MCP Adapter bundled by Super Speedy Plugins', 'super-speedy-settings' ),
+                'unavailable'       => __( 'Unavailable', 'super-speedy-settings' ),
+            );
+            if ( 'plugin-bundle' === $provider ) {
+                $provider_name = ! empty( $adapter['provider_name'] ) ? $adapter['provider_name'] : __( 'another plugin', 'super-speedy-settings' );
+                return sprintf(
+                    /* translators: %s: plugin name */
+                    __( 'Official MCP Adapter bundled by %s', 'super-speedy-settings' ),
+                    $provider_name
+                );
+            }
+            return isset( $labels[ $provider ] ) ? $labels[ $provider ] : $provider;
+        }
+
         public static function render_page() {
             if ( ! current_user_can( 'manage_options' ) ) {
                 return;
@@ -309,13 +329,7 @@ if ( ! class_exists( 'SSP_MCP_Setup' ) ) {
             $execute      = $agent && '1' === get_user_meta( $agent->ID, 'ssp_mcp_allow_execute', true );
             $install      = $agent && '1' === get_user_meta( $agent->ID, 'ssp_mcp_allow_install', true );
             $ready        = ! empty( $adapter['available'] ) && $app_password;
-            $provider     = isset( $adapter['provider'] ) ? $adapter['provider'] : 'unavailable';
-            $provider_labels = array(
-                'official-plugin'   => __( 'Official MCP Adapter plugin', 'super-speedy-settings' ),
-                'external-composer' => __( 'MCP Adapter supplied by another plugin', 'super-speedy-settings' ),
-                'bundled'           => __( 'Official MCP Adapter bundled by Super Speedy Plugins', 'super-speedy-settings' ),
-                'unavailable'       => __( 'Unavailable', 'super-speedy-settings' ),
-            );
+            $provider_label = self::provider_label( $adapter );
             ?>
             <div class="wrap superspeedy-mcp-setup">
                 <div class="super-speedy-plugins-admin-header"><a href="https://www.superspeedyplugins.com/" target="_blank" rel="noopener"><img src="<?php echo esc_url( plugins_url( 'super-speedy-plugins-black-text.png', __FILE__ ) ); ?>" width="151" height="32" alt="Super Speedy Plugins"></a></div>
@@ -327,7 +341,7 @@ if ( ! class_exists( 'SSP_MCP_Setup' ) ) {
                         <h2><?php esc_html_e( 'Connection status', 'super-speedy-settings' ); ?></h2>
                         <p><span class="ssp-mcp-dot <?php echo $ready ? 'is-ready' : 'is-blocked'; ?>"></span><strong><?php echo esc_html( $ready ? __( 'MCP Adapter ready', 'super-speedy-settings' ) : __( 'Connection requirements incomplete', 'super-speedy-settings' ) ); ?></strong></p>
                         <dl>
-                            <dt><?php esc_html_e( 'Provider', 'super-speedy-settings' ); ?></dt><dd><?php echo esc_html( isset( $provider_labels[ $provider ] ) ? $provider_labels[ $provider ] : $provider ); ?></dd>
+                            <dt><?php esc_html_e( 'Provider', 'super-speedy-settings' ); ?></dt><dd><?php echo esc_html( $provider_label ); ?></dd>
                             <dt><?php esc_html_e( 'Version', 'super-speedy-settings' ); ?></dt><dd><?php echo esc_html( ! empty( $adapter['version'] ) ? $adapter['version'] : '—' ); ?></dd>
                             <dt><?php esc_html_e( 'Endpoint', 'super-speedy-settings' ); ?></dt><dd><code><?php echo esc_html( rest_url( 'mcp/mcp-adapter-default-server' ) ); ?></code></dd>
                             <dt><?php esc_html_e( 'Agent user', 'super-speedy-settings' ); ?></dt><dd><?php echo esc_html( $agent ? $agent->user_login : __( 'Created when you generate the connection', 'super-speedy-settings' ) ); ?></dd>

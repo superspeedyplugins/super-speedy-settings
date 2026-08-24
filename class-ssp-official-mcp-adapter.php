@@ -18,6 +18,7 @@ if ( ! class_exists( 'SSP_Official_MCP_Adapter' ) ) {
         private static $status = array(
             'available' => false,
             'provider'  => 'unavailable',
+            'provider_name' => '',
             'version'   => '',
             'message'   => '',
         );
@@ -39,18 +40,23 @@ if ( ! class_exists( 'SSP_Official_MCP_Adapter' ) ) {
             // A standalone Adapter plugin loads before plugins_loaded. Avoid
             // triggering another package autoloader until that case is checked.
             if ( class_exists( $adapter_class, false ) ) {
-                $provider = defined( 'WP_MCP_DIR' ) ? 'official-plugin' : 'external-composer';
+                $provider = array(
+                    'provider'      => defined( 'WP_MCP_DIR' ) ? 'official-plugin' : 'external-composer',
+                    'provider_name' => '',
+                );
                 try {
                     $reflection = new ReflectionClass( $adapter_class );
-                    $class_file = wp_normalize_path( (string) $reflection->getFileName() );
-                    $bundle_dir = trailingslashit( wp_normalize_path( __DIR__ . '/vendor' ) );
-                    if ( strpos( $class_file, $bundle_dir ) === 0 ) {
-                        $provider = 'bundled';
-                    }
+                    $provider = self::identify_provider(
+                        (string) $reflection->getFileName(),
+                        __DIR__ . '/vendor',
+                        WP_PLUGIN_DIR,
+                        null,
+                        defined( 'WP_MCP_DIR' )
+                    );
                 } catch ( ReflectionException $exception ) {
                     // Provider labelling is informational; the class is usable.
                 }
-                self::start( $adapter_class, $provider );
+                self::start( $adapter_class, $provider['provider'], $provider['provider_name'] );
                 return;
             }
 
@@ -75,12 +81,48 @@ if ( ! class_exists( 'SSP_Official_MCP_Adapter' ) ) {
             self::start( $adapter_class, 'bundled' );
         }
 
-        private static function start( $adapter_class, $provider ) {
+        /** Identify the plugin or package which loaded an existing Adapter class. */
+        public static function identify_provider( $class_file, $bundle_dir, $plugin_dir, $plugins = null, $official_plugin_loaded = false ) {
+            if ( $official_plugin_loaded ) {
+                return array( 'provider' => 'official-plugin', 'provider_name' => '' );
+            }
+
+            $class_file = wp_normalize_path( (string) $class_file );
+            $bundle_dir = trailingslashit( wp_normalize_path( (string) $bundle_dir ) );
+            $plugin_dir = trailingslashit( wp_normalize_path( (string) $plugin_dir ) );
+
+            if ( strpos( $class_file, $bundle_dir ) === 0 ) {
+                return array( 'provider' => 'bundled', 'provider_name' => '' );
+            }
+
+            if ( strpos( $class_file, $plugin_dir ) === 0 ) {
+                $relative = ltrim( substr( $class_file, strlen( $plugin_dir ) ), '/' );
+                $slug     = strtok( $relative, '/' );
+                if ( null === $plugins ) {
+                    if ( ! function_exists( 'get_plugins' ) ) {
+                        require_once ABSPATH . 'wp-admin/includes/plugin.php';
+                    }
+                    $plugins = get_plugins();
+                }
+                foreach ( (array) $plugins as $plugin_file => $headers ) {
+                    if ( strpos( wp_normalize_path( $plugin_file ), $slug . '/' ) === 0 ) {
+                        $name = ! empty( $headers['Name'] ) ? $headers['Name'] : $slug;
+                        return array( 'provider' => 'plugin-bundle', 'provider_name' => $name );
+                    }
+                }
+                return array( 'provider' => 'plugin-bundle', 'provider_name' => $slug );
+            }
+
+            return array( 'provider' => 'external-composer', 'provider_name' => '' );
+        }
+
+        private static function start( $adapter_class, $provider, $provider_name = '' ) {
             $adapter_class::instance();
 
             self::$status = array(
                 'available' => true,
                 'provider'  => $provider,
+                'provider_name' => $provider_name,
                 'version'   => defined( $adapter_class . '::VERSION' ) ? constant( $adapter_class . '::VERSION' ) : self::VERSION,
                 'message'   => '',
             );
