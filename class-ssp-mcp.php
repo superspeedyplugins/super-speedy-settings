@@ -312,10 +312,13 @@ class SSP_MCP {
             return $validated;
         }
 
-        // Carry the licence with the SAME parameter set the update checker sends
+        // Carry the SAME non-secret parameters the update checker sends
         // (add_license_to_remote_update_request in super-speedy-settings-core.php).
         // The auth server refuses anything without license_version=2 as a legacy
-        // client, so a bare license_key is not enough.
+        // client. The licence key itself is NOT added here: download_package()
+        // fetches through WP_Http, where
+        // SuperSpeedySettingsCore::add_license_header_to_package_request() sends it
+        // as the X-SSP-License-Key header, so it never appears in a URL.
         $key = self::licence_key();
         if ( $key !== '' ) {
             $domain = (string) wp_parse_url( get_home_url(), PHP_URL_HOST );
@@ -323,7 +326,6 @@ class SSP_MCP {
                 $domain = 'lh';
             }
             $url = add_query_arg( array(
-                'license_key'     => $key,
                 'domain'          => $domain,
                 'license_version' => 2,
                 'sv'              => class_exists( 'SuperSpeedySettingsCore' ) ? SuperSpeedySettingsCore::SETTINGS_VERSION : '',

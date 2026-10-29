@@ -23,7 +23,7 @@ if ( class_exists( 'SuperSpeedySettingsCore', false ) || ! empty( $GLOBALS['ssp_
 }
 $GLOBALS['ssp_settings_core_bootstrapped'] = true;
 $GLOBALS['ssp_settings_selected_dir'] = __DIR__;
-$GLOBALS['ssp_settings_selected_version'] = '1.14.2';
+$GLOBALS['ssp_settings_selected_version'] = '1.14.3';
 
 require_once __DIR__ . '/abstract-class-super-speedy-settings.php';
 if ( is_admin() ) {
@@ -82,7 +82,14 @@ if (!class_exists('SuperSpeedySettingsCore')) {
         // &sv= (distinct from a plugin's own build, sent as v=). Lets auth see which
         // sites run stale settings code (e.g. still checking www, or missing a param).
         // Bump this whenever the settings code changes in a way worth tracking.
-        const SETTINGS_VERSION = '1.14.2';
+        const SETTINGS_VERSION = '1.14.3';
+        // Package downloads carry the licence key in this header, never in the URL
+        // (settings 1.14.3). A URL is written to access logs, proxy logs, the stored
+        // update_plugins transient and the upgrader's "Downloading update from ..."
+        // line; a request header is not. The auth server still accepts the old
+        // ?license_key= parameter so sites on older builds keep updating.
+        const LICENSE_HEADER = 'X-SSP-License-Key';
+        const LICENSED_PACKAGE_HOST = 'auth.superspeedyplugins.com';
         private $update_checkers = array();
         
         
@@ -299,6 +306,11 @@ if (!class_exists('SuperSpeedySettingsCore')) {
         public function setup() {
             // call parent setup
             parent::setup();
+            // Every package download path goes through WP_Http: wp-admin updates,
+            // cron auto-updates, WP-CLI and the ssp/install-plugin installer. So the
+            // licence header is added here, for every context, and NOT behind
+            // is_admin() - WP-CLI and cron are not admin requests.
+            add_filter( 'http_request_args', array( $this, 'add_license_header_to_package_request' ), 10, 2 );
             if ( is_admin() ) {
                 $this->ssp_initialize_updaters();
             }
@@ -1047,13 +1059,15 @@ if (!class_exists('SuperSpeedySettingsCore')) {
                 }
             }
 
-            // ALWAYS append the licence credentials. This used to be gated on the
-            // call stack containing wp_update_plugins / wp_ajax_update_plugin,
+            // ALWAYS append the (non-secret) licence parameters. This used to be gated
+            // on the call stack containing wp_update_plugins / wp_ajax_update_plugin,
             // which left every other update flow (auto-updates, bulk updates,
             // WP-CLI) with a BARE download URL - and the auth server's legacy v1
             // path served bare URLs with no licence check at all, so those flows
-            // updated free forever. The v1 path is now closed server-side; the
-            // params are harmless in non-download contexts (just query args).
+            // updated free forever. The v1 path is now closed server-side.
+            //
+            // The licence KEY itself is not in the URL: add_license_header_to_package_request()
+            // sends it as the X-SSP-License-Key header when the package is fetched.
 
             $options = get_option( 'superspeedy_options' );
     
@@ -1065,10 +1079,7 @@ if (!class_exists('SuperSpeedySettingsCore')) {
             }
     
     
-            $license_key = 'no_license_entered';
-            if (isset($options['superspeedy_field_licensekey'])) {
-                $license_key = $options['superspeedy_field_licensekey'];
-            } else {
+            if (!isset($options['superspeedy_field_licensekey'])) {
                 $update->upgrade_notice = 'Enter a valid license key to enable updates for Super Speedy plugins.';
             }
             // Your domain
@@ -1095,9 +1106,8 @@ if (!class_exists('SuperSpeedySettingsCore')) {
                     }
                 }
             }
-            // Append these parameters to the download_url
+            // Append these parameters to the download_url. No license_key: see above.
             $update->download_url = add_query_arg(array(
-                'license_key' => $license_key,
                 'domain'      => $domain,
                 'license_version' => 2,
                 'v'           => $installed_version,
@@ -1106,6 +1116,59 @@ if (!class_exists('SuperSpeedySettingsCore')) {
     
     //            $update->download_url = str_replace('https://www.superspeedyplugins.com', 'https://www.superspeedypluginsXASDASD.com', $update->download_url);
             return $update;
+        }
+        /**
+         * Is this the licence-checked package endpoint on the auth server?
+         *
+         * Exactly https://auth.superspeedyplugins.com[:443]/[wp-json/]secure-wpi/v1/download/<slug>,
+         * the only url every <slug>.json download_url may hold. Nothing else ever
+         * receives the licence header.
+         */
+        public static function is_licensed_package_url( $url ) {
+            $parts = wp_parse_url( (string) $url );
+            return is_array( $parts )
+                && isset( $parts['scheme'], $parts['host'], $parts['path'] )
+                && 'https' === strtolower( $parts['scheme'] )
+                && self::LICENSED_PACKAGE_HOST === strtolower( $parts['host'] )
+                && ( ! isset( $parts['port'] ) || 443 === (int) $parts['port'] )
+                && ! isset( $parts['user'] ) && ! isset( $parts['pass'] )
+                && 1 === preg_match( '#^/(?:wp-json/)?secure-wpi/v1/download/[A-Za-z0-9-]+/?$#', $parts['path'] );
+        }
+
+        /** The licence key entered on this site, or '' when none is. */
+        public static function stored_license_key() {
+            $options = get_option( 'superspeedy_options' );
+            if ( is_array( $options ) && isset( $options['superspeedy_field_licensekey'] ) ) {
+                return trim( (string) $options['superspeedy_field_licensekey'] );
+            }
+            return '';
+        }
+
+        /**
+         * http_request_args: authorise a package download with the X-SSP-License-Key
+         * header instead of a license_key query parameter.
+         *
+         * Redirects are switched off for this request: WpOrg\Requests re-sends the
+         * original headers to a redirect target, so following one would hand the key
+         * to wherever it pointed. The auth endpoint streams the zip itself and never
+         * redirects, so a redirect here is a fault and surfaces as a failed download.
+         */
+        public function add_license_header_to_package_request( $args, $url ) {
+            if ( ! self::is_licensed_package_url( $url ) ) {
+                return $args;
+            }
+            $args['redirection'] = 0;
+            $key = self::stored_license_key();
+            if ( '' === $key ) {
+                return $args; // The auth server refuses it as "Licence key not recognised".
+            }
+            $headers = isset( $args['headers'] ) ? $args['headers'] : array();
+            if ( ! is_array( $headers ) ) {
+                $headers = '' === (string) $headers ? array() : WP_Http::processHeaders( (string) $headers )['headers'];
+            }
+            $headers[ self::LICENSE_HEADER ] = $key;
+            $args['headers'] = $headers;
+            return $args;
         }
         function get_changes_since_version($plugin, $version) {
             // Check if data is already in the cache
