@@ -1,4 +1,6 @@
 <?php
+if (!defined('ABSPATH')) { return; }
+
 if (!class_exists('SuperSpeedySettings')) {
     abstract class SuperSpeedySettings {
         protected static $instance = null;

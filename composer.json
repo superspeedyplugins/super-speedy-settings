@@ -2,7 +2,7 @@
     "name": "superspeedyplugins/super-speedy-settings",
     "description": "Shared settings and MCP bootstrap for Super Speedy Plugins.",
     "type": "wordpress-plugin",
-    "license": "GPL-2.0-or-later",
+    "license": "GPL-3.0-or-later",
     "require": {
         "php": ">=7.4",
         "wordpress/mcp-adapter": "0.5.0"
