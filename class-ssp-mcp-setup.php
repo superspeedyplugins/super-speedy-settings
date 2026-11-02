@@ -243,6 +243,12 @@ if ( ! class_exists( 'SSP_MCP_Setup' ) ) {
                 wp_send_json_error( array( 'message' => $adapter['message'] ?: __( 'The MCP Adapter is unavailable.', 'super-speedy-settings' ) ), 400 );
             }
 
+            // Creating the agent creates a user account. On multisite a sub-site administrator
+            // has manage_options but may not create users; the network's own policy decides.
+            if ( ! self::agent_user() && ! current_user_can( 'create_users' ) ) {
+                wp_send_json_error( array( 'message' => __( 'Creating the connection adds a user account, which your account is not allowed to do on this network. Ask a network administrator to generate it.', 'super-speedy-settings' ) ), 403 );
+            }
+
             $user = self::ensure_agent_user();
             if ( is_wp_error( $user ) ) {
                 wp_send_json_error( array( 'message' => $user->get_error_message() ), 500 );
