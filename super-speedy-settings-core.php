@@ -23,7 +23,7 @@ if ( class_exists( 'SuperSpeedySettingsCore', false ) || ! empty( $GLOBALS['ssp_
 }
 $GLOBALS['ssp_settings_core_bootstrapped'] = true;
 $GLOBALS['ssp_settings_selected_dir'] = __DIR__;
-$GLOBALS['ssp_settings_selected_version'] = '1.14.5';
+$GLOBALS['ssp_settings_selected_version'] = '1.14.6';
 
 require_once __DIR__ . '/abstract-class-super-speedy-settings.php';
 if ( is_admin() ) {
@@ -82,7 +82,7 @@ if (!class_exists('SuperSpeedySettingsCore')) {
         // &sv= (distinct from a plugin's own build, sent as v=). Lets auth see which
         // sites run stale settings code (e.g. still checking www, or missing a param).
         // Bump this whenever the settings code changes in a way worth tracking.
-        const SETTINGS_VERSION = '1.14.5';
+        const SETTINGS_VERSION = '1.14.6';
         // Package downloads carry the licence key in this header, never in the URL
         // (settings 1.14.3). A URL is written to access logs, proxy logs, the stored
         // update_plugins transient and the upgrader's "Downloading update from ..."
@@ -318,12 +318,30 @@ if (!class_exists('SuperSpeedySettingsCore')) {
             // the counts are placed. 999 rather than the default 10 for that reason.
             add_action( 'admin_menu', array($this, 'decorate_update_counts'), 999 );
             add_action( 'admin_init', array($this, 'settings_init') );
+            add_action( 'admin_init', array($this, 'purge_raw_changelog_cache') );
             add_action('wp_error_added', array($this, 'handle_wp_error_added'), 10, 4);
             add_action( 'admin_enqueue_scripts', array($this, 'enqueue_admin_script'));
             add_action('wp_ajax_superspeedy_recheck_license', array($this, 'handle_recheck_license'));
             add_action('wp_ajax_superspeedy_install_performance_analysis', array($this, 'handle_install_performance_analysis'));
             add_action('updated_option', array($this, 'keep_shared_options_out_of_autoload'), 10, 1);
             $this->ensure_options_not_autoloaded();
+        }
+        /**
+         * One-off cleanup (settings 1.14.6). Up to 1.14.5, remote_get() cached the
+         * whole wp_remote_get() return of each changelog check as
+         * _transient_ssp_<md5(url)> - headers, cookies and the readme body three
+         * times over, 600 KB+ per plugin. Nothing reads those rows any more, so
+         * delete them once per site. The pattern matches only those md5 keys.
+         * With a persistent object cache there are no rows and the old entries
+         * expire on their own.
+         */
+        public function purge_raw_changelog_cache() {
+            if ( get_option( 'superspeedy_settings_raw_cache_purged' ) ) {
+                return;
+            }
+            global $wpdb;
+            $wpdb->query( "DELETE FROM {$wpdb->options} WHERE option_name REGEXP '^_transient_(timeout_)?ssp_[0-9a-f]{32}$'" );
+            update_option( 'superspeedy_settings_raw_cache_purged', self::SETTINGS_VERSION, true );
         }
         public function keep_shared_options_out_of_autoload( $option ) {
             if ( 'superspeedy_options' === $option ) {
@@ -1177,7 +1195,8 @@ if (!class_exists('SuperSpeedySettingsCore')) {
                 return $changes;
             }
             // Open the changelog file
-            $response = $this->remote_get('https://www.superspeedyplugins.com/assets/plugins/' . $plugin . '/readme.txt?v=' . $version);
+            // Not cached raw: only the parsed result below is stored (settings 1.14.6).
+            $response = wp_remote_get('https://www.superspeedyplugins.com/assets/plugins/' . $plugin . '/readme.txt?v=' . $version);
 
             // Check if there was an error in retrieving the content. Issue #165:
             // a non-200 (e.g. a Cloudflare challenge page) is NOT a WP_Error but
@@ -1249,11 +1268,15 @@ if (!class_exists('SuperSpeedySettingsCore')) {
                 return $changes;
             }
 
-            $response = $this->remote_get('https://www.superspeedyplugins.com/assets/plugins/' . $plugin . '/readme.txt');
+            // Not cached raw: only the parsed result below is stored (settings 1.14.6).
+            $response = wp_remote_get('https://www.superspeedyplugins.com/assets/plugins/' . $plugin . '/readme.txt');
 
             // Check if there was an error in retrieving the content (issue #165:
-            // non-200 challenge pages count as failure, same as above)
+            // non-200 challenge pages count as failure, same as above). The failure
+            // is cached for an hour, as get_changes_since_version() does, so a
+            // failing server is not asked again on every settings page load.
             if (!$this->is_valid_changelog_response($response)) {
+                set_transient($transient_key, ["count" => 0, "changes" => 0], $this->check_ttl(1 * HOUR_IN_SECONDS));
                 return false; // failed to check for updates
             }
 
@@ -1316,25 +1339,6 @@ if (!class_exists('SuperSpeedySettingsCore')) {
 
             return $result;
 
-        }
-        function remote_get($url, $args = array()) {
-            // Create a unique transient key based on the URL
-            $transient_key = 'ssp_' . md5($url);
-        
-            // Try to get the content from the transient
-            $cached_content = get_transient($transient_key);
-        
-            if ($cached_content !== false) {
-                return $cached_content;
-            }
-        
-            // If not in transient, fetch the content
-            $response = wp_remote_get($url, $args);
-
-            // Cache the response, whether it's a WP_Error or not
-            set_transient($transient_key, $response, $this->check_ttl(2 * HOUR_IN_SECONDS));
-        
-            return $response;
         }
         public function is_valid_changelog_response( $response ) {
             if ( ! is_array( $response ) || is_wp_error( $response ) ) {
