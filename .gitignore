@@ -1,0 +1,3 @@
+# Private agent rules live in superspeedy-plugin-meta/super-speedy-settings/ and are symlinked here.
+/AGENTS.md
+/CLAUDE.md
