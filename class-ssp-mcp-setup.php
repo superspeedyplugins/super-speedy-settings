@@ -118,27 +118,105 @@ if ( ! class_exists( 'SSP_MCP_Setup' ) ) {
             return null;
         }
 
+        /**
+         * The agent's email: <login>@<site host>, or @<admin email domain> when the host gives no
+         * valid address (a dot-less host such as localhost). Empty string when neither is valid.
+         *
+         * The agent must never have an empty email: other plugins' user_register listeners query
+         * orders by it, and WooCommerce ignores an empty billing_email filter and loads every
+         * order (Pay For Post 1.0.4 exhausted a customer's 2 GB limit that way, November 2026).
+         */
+        private static function agent_email( $username ) {
+            $domains = array();
+            $host    = wp_parse_url( home_url( '/' ), PHP_URL_HOST );
+            if ( $host ) {
+                $domains[] = $host;
+            }
+            $admin_email = (string) get_option( 'admin_email' );
+            if ( false !== strpos( $admin_email, '@' ) ) {
+                $domains[] = substr( strrchr( $admin_email, '@' ), 1 );
+            }
+            $email = '';
+            foreach ( $domains as $domain ) {
+                $candidate = sanitize_email( $username . '@' . strtolower( $domain ) );
+                if ( $candidate && is_email( $candidate ) ) {
+                    $email = $candidate;
+                    break;
+                }
+            }
+            $email = (string) apply_filters( 'ssp_mcp_agent_email', $email, $username );
+            return is_email( $email ) ? $email : '';
+        }
+
+        /** WooCommerce billing fields for the agent, so order lookups by billing_email match nothing. */
+        private static function agent_billing_meta( $email ) {
+            if ( ! class_exists( 'WooCommerce' ) ) {
+                return array();
+            }
+            return array(
+                'billing_email'      => $email,
+                'billing_first_name' => 'Super Speedy',
+                'billing_last_name'  => 'Agent',
+            );
+        }
+
+        /**
+         * Fill an existing agent's empty or invalid email and empty billing fields; never overwrite.
+         *
+         * @return WP_User|WP_Error
+         */
+        private static function repair_agent_user( WP_User $user ) {
+            $email = $user->user_email;
+            if ( ! is_email( $email ) ) {
+                $email = self::agent_email( $user->user_login );
+                if ( '' === $email ) {
+                    return new WP_Error( 'ssp_mcp_agent_email', __( 'Could not build a valid email address for the Super Speedy Agent user from the site address or the admin email. Set one with the ssp_mcp_agent_email filter.', 'super-speedy-settings' ) );
+                }
+                // The old address is empty or invalid, so there is no one to notify of the change.
+                add_filter( 'send_email_change_email', '__return_false' );
+                $updated = wp_update_user( array( 'ID' => $user->ID, 'user_email' => $email ) );
+                remove_filter( 'send_email_change_email', '__return_false' );
+                if ( is_wp_error( $updated ) ) {
+                    return $updated;
+                }
+            }
+            foreach ( self::agent_billing_meta( $email ) as $key => $value ) {
+                if ( '' === (string) get_user_meta( $user->ID, $key, true ) ) {
+                    update_user_meta( $user->ID, $key, $value );
+                }
+            }
+            return get_user_by( 'id', $user->ID );
+        }
+
         /** @return WP_User|WP_Error */
         private static function ensure_agent_user() {
             $user = self::agent_user();
             if ( $user ) {
-                return $user;
+                return self::repair_agent_user( $user );
             }
 
             self::register_agent_role();
             $base     = 'super-speedy-agent';
             $username = $base;
             $suffix   = 2;
-            while ( username_exists( $username ) ) {
+            while ( username_exists( $username ) || email_exists( self::agent_email( $username ) ) ) {
                 $username = $base . '-' . $suffix;
                 $suffix++;
             }
 
+            $email = self::agent_email( $username );
+            if ( '' === $email ) {
+                return new WP_Error( 'ssp_mcp_agent_email', __( 'Could not build a valid email address for the Super Speedy Agent user from the site address or the admin email. Set one with the ssp_mcp_agent_email filter.', 'super-speedy-settings' ) );
+            }
+
+            // meta_input is written before user_register fires, so its listeners see the billing fields.
             $user_id = wp_insert_user( array(
                 'user_login'   => $username,
+                'user_email'   => $email,
                 'user_pass'    => wp_generate_password( 64, true, true ),
                 'display_name' => __( 'Super Speedy Agent', 'super-speedy-settings' ),
                 'role'         => self::AGENT_ROLE,
+                'meta_input'   => self::agent_billing_meta( $email ),
             ) );
             if ( is_wp_error( $user_id ) ) {
                 return $user_id;
