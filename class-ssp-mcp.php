@@ -53,6 +53,8 @@ class SSP_MCP {
     public static function public_packages() {
         return (array) apply_filters( 'superspeedy_public_packages', array(
             'super-speedy-performance-analysis' => 'https://github.com/superspeedyplugins/super-speedy-performance-analysis/releases/latest/download/super-speedy-performance-analysis.zip',
+            // Pro is free with no licence gate; the authorising endpoint serves it without a key.
+            'super-speedy-performance-analysis-pro' => 'https://auth.superspeedyplugins.com/wp-json/secure-wpi/v1/download/super-speedy-performance-analysis-pro',
         ) );
     }
 
@@ -118,6 +120,7 @@ class SSP_MCP {
             'super-speedy-imports'      => array( 'name' => 'Super Speedy Imports',      'file' => 'super-speedy-imports/super-speedy-imports.php' ),
             'scalability-pro'           => array( 'name' => 'Scalability Pro',           'file' => 'scalability-pro/scalability-pro.php' ),
             'super-speedy-performance-analysis' => array( 'name' => 'Super Speedy Performance Analysis', 'file' => 'super-speedy-performance-analysis/super-speedy-performance-analysis.php' ),
+            'super-speedy-performance-analysis-pro' => array( 'name' => 'Super Speedy Performance Analysis Pro', 'file' => 'super-speedy-performance-analysis-pro/super-speedy-performance-analysis.php' ),
             'external-images'           => array( 'name' => 'External Images',           'file' => 'external-images/external-images.php' ),
             'auto-infinite-scroll'      => array( 'name' => 'Auto Infinite Scroll',      'file' => 'auto-infinite-scroll/auto-infinite-scroll.php' ),
             'super-speedy-ajax-prices'  => array( 'name' => 'Super Speedy Ajax Prices',  'file' => 'super-speedy-ajax-prices/super-speedy-ajax-prices.php' ),

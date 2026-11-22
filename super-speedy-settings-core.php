@@ -23,7 +23,7 @@ if ( class_exists( 'SuperSpeedySettingsCore', false ) || ! empty( $GLOBALS['ssp_
 }
 $GLOBALS['ssp_settings_core_bootstrapped'] = true;
 $GLOBALS['ssp_settings_selected_dir'] = __DIR__;
-$GLOBALS['ssp_settings_selected_version'] = '1.14.7';
+$GLOBALS['ssp_settings_selected_version'] = '1.14.8';
 
 require_once __DIR__ . '/abstract-class-super-speedy-settings.php';
 if ( is_admin() ) {
@@ -82,7 +82,7 @@ if (!class_exists('SuperSpeedySettingsCore')) {
         // &sv= (distinct from a plugin's own build, sent as v=). Lets auth see which
         // sites run stale settings code (e.g. still checking www, or missing a param).
         // Bump this whenever the settings code changes in a way worth tracking.
-        const SETTINGS_VERSION = '1.14.7';
+        const SETTINGS_VERSION = '1.14.8';
         // Package downloads carry the licence key in this header, never in the URL
         // (settings 1.14.3). A URL is written to access logs, proxy logs, the stored
         // update_plugins transient and the upgrader's "Downloading update from ..."
@@ -515,16 +515,31 @@ if (!class_exists('SuperSpeedySettingsCore')) {
                 echo '<p class="description">' . esc_html( sprintf( __( 'Licence last checked: %s ago.', 'superspeedy' ), human_time_diff( $last ) ) ) . '</p>';
             }
         }
-        /** Slug and main file of the free diagnostic that leads this page. */
-        const SSPA_SLUG = 'super-speedy-performance-analysis';
-        const SSPA_FILE = 'super-speedy-performance-analysis/super-speedy-performance-analysis.php';
+        /**
+         * Slug and main file of the free diagnostic that leads this page. The Install button
+         * installs Pro (free, its own folder); SSPA_PLAIN_FILE is the wordpress.org edition
+         * and every copy installed before Pro had a folder of its own.
+         */
+        const SSPA_SLUG = 'super-speedy-performance-analysis-pro';
+        const SSPA_FILE = 'super-speedy-performance-analysis-pro/super-speedy-performance-analysis.php';
+        const SSPA_PLAIN_FILE = 'super-speedy-performance-analysis/super-speedy-performance-analysis.php';
+
+        /** The installed copy to activate: Pro when it is there, else the plain folder; '' when neither. */
+        protected function performance_analysis_file() {
+            foreach ( array( self::SSPA_FILE, self::SSPA_PLAIN_FILE ) as $file ) {
+                if ( file_exists( WP_PLUGIN_DIR . '/' . $file ) ) {
+                    return $file;
+                }
+            }
+            return '';
+        }
 
         /** installed-and-active | installed | missing, for the panel below. */
         protected function performance_analysis_state() {
             if ( function_exists( 'sspa_default_options' ) ) {
                 return 'active';
             }
-            return file_exists( WP_PLUGIN_DIR . '/' . self::SSPA_FILE ) ? 'inactive' : 'missing';
+            return '' !== $this->performance_analysis_file() ? 'inactive' : 'missing';
         }
 
         /**
@@ -634,8 +649,8 @@ if (!class_exists('SuperSpeedySettingsCore')) {
             }
             if ('inactive' === $state) {
                 $activate = wp_nonce_url(
-                    self_admin_url('plugins.php?action=activate&plugin=' . rawurlencode(self::SSPA_FILE)),
-                    'activate-plugin_' . self::SSPA_FILE
+                    self_admin_url('plugins.php?action=activate&plugin=' . rawurlencode($this->performance_analysis_file())),
+                    'activate-plugin_' . $this->performance_analysis_file()
                 );
                 return '<a class="button button-primary" href="' . esc_url($activate) . '">'
                     . esc_html__('Activate Performance Analysis', 'super-speedy-settings') . '</a>';
