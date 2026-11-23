@@ -43,6 +43,19 @@ if (!class_exists('SuperSpeedySettings')) {
                 delete_transient($transient_key);
             }
         }
+        /** The "Plugin Name" header of a plugin's main file, read once per request; '' if unreadable. */
+        protected static function plugin_header_name($file) {
+            static $names = array();
+            $file = (string) $file;
+            if (!isset($names[$file])) {
+                $names[$file] = '';
+                if ('' !== $file && is_readable($file) && function_exists('get_file_data')) {
+                    $data = get_file_data($file, array('Name' => 'Plugin Name'));
+                    $names[$file] = isset($data['Name']) ? trim((string) $data['Name']) : '';
+                }
+            }
+            return $names[$file];
+        }
         protected static function getLicenses() {
             global $superspeedy_licenses;
             global $superspeedy_plugin_versions;
@@ -75,7 +88,17 @@ if (!class_exists('SuperSpeedySettings')) {
                 }
             }    
 
-
+            // A plugin that registered itself (it carries its main file) and is not in the
+            // list above is named from its own plugin header, so an add-on needs no entry
+            // here to be shown properly on the settings page (settings 1.14.9).
+            foreach ($licenses as $slug => $license) {
+                if (empty($license['name']) && !empty($license['file'])) {
+                    $header_name = self::plugin_header_name($license['file']);
+                    if ('' !== $header_name) {
+                        $licenses[$slug]['name'] = $header_name;
+                    }
+                }
+            }
 
             return $licenses;
         }

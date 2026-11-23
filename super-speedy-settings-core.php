@@ -23,7 +23,7 @@ if ( class_exists( 'SuperSpeedySettingsCore', false ) || ! empty( $GLOBALS['ssp_
 }
 $GLOBALS['ssp_settings_core_bootstrapped'] = true;
 $GLOBALS['ssp_settings_selected_dir'] = __DIR__;
-$GLOBALS['ssp_settings_selected_version'] = '1.14.8';
+$GLOBALS['ssp_settings_selected_version'] = '1.14.9';
 
 require_once __DIR__ . '/abstract-class-super-speedy-settings.php';
 if ( is_admin() ) {
@@ -82,7 +82,7 @@ if (!class_exists('SuperSpeedySettingsCore')) {
         // &sv= (distinct from a plugin's own build, sent as v=). Lets auth see which
         // sites run stale settings code (e.g. still checking www, or missing a param).
         // Bump this whenever the settings code changes in a way worth tracking.
-        const SETTINGS_VERSION = '1.14.8';
+        const SETTINGS_VERSION = '1.14.9';
         // Package downloads carry the licence key in this header, never in the URL
         // (settings 1.14.3). A URL is written to access logs, proxy logs, the stored
         // update_plugins transient and the upgrader's "Downloading update from ..."
@@ -807,6 +807,22 @@ if (!class_exists('SuperSpeedySettingsCore')) {
                 : __( 'Licence status unavailable', 'super-speedy-settings' );
         }
 
+        /**
+         * Is this plugin running on this request?
+         *
+         * A plugin that registered itself carries its main file, and only a loaded (so
+         * active) plugin can register: the same test decorate_update_counts() uses. That
+         * holds for any slug, with no entry needed in $base_plugin_info and no global
+         * function to name (settings 1.14.9). The named function is the older test, kept
+         * for an entry that has no registered file.
+         */
+        protected function plugin_is_active( $ssp_license ) {
+            if ( ! empty( $ssp_license['file'] ) ) {
+                return true;
+            }
+            return ! empty( $ssp_license['function'] ) && function_exists( $ssp_license['function'] );
+        }
+
         public function display_license_table( ) {
             $superspeedy_licenses = $this->getLicenses();
             $site_url = get_site_url();
@@ -853,7 +869,7 @@ if (!class_exists('SuperSpeedySettingsCore')) {
                 foreach ( $installed as $slug => $row ) {
                     $ssp_license = $row['info'];
                     $license     = $row['license'];
-                    $is_active   = ( ! empty($ssp_license['function']) && function_exists($ssp_license['function']) );
+                    $is_active   = $this->plugin_is_active( $ssp_license );
                     echo '<tr class="' . ( $is_active ? 'activated' : 'deactivated' ) . '">';
                     echo '<td>';
                     if ( file_exists( __DIR__ . '/images/' . $slug . '.png' ) ) {
