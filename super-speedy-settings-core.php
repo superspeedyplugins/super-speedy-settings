@@ -23,7 +23,7 @@ if ( class_exists( 'SuperSpeedySettingsCore', false ) || ! empty( $GLOBALS['ssp_
 }
 $GLOBALS['ssp_settings_core_bootstrapped'] = true;
 $GLOBALS['ssp_settings_selected_dir'] = __DIR__;
-$GLOBALS['ssp_settings_selected_version'] = '1.14.9';
+$GLOBALS['ssp_settings_selected_version'] = '1.14.10';
 
 require_once __DIR__ . '/abstract-class-super-speedy-settings.php';
 if ( is_admin() ) {
@@ -82,7 +82,7 @@ if (!class_exists('SuperSpeedySettingsCore')) {
         // &sv= (distinct from a plugin's own build, sent as v=). Lets auth see which
         // sites run stale settings code (e.g. still checking www, or missing a param).
         // Bump this whenever the settings code changes in a way worth tracking.
-        const SETTINGS_VERSION = '1.14.9';
+        const SETTINGS_VERSION = '1.14.10';
         // Package downloads carry the licence key in this header, never in the URL
         // (settings 1.14.3). A URL is written to access logs, proxy logs, the stored
         // update_plugins transient and the upgrader's "Downloading update from ..."
@@ -517,10 +517,11 @@ if (!class_exists('SuperSpeedySettingsCore')) {
         }
         /**
          * Slug and main file of the free diagnostic that leads this page. The Install button
-         * installs Pro (free, its own folder); SSPA_PLAIN_FILE is the wordpress.org edition
-         * and every copy installed before Pro had a folder of its own.
+         * installs the free wordpress.org edition, SSPA_PLAIN_FILE, on every site, licensed or
+         * not (Dave, 24 November 2026). Pro, SSPA_FILE, is paid and is only obtained by buying
+         * and downloading it, but an installed Pro still counts as installed and is preferred.
          */
-        const SSPA_SLUG = 'super-speedy-performance-analysis-pro';
+        const SSPA_SLUG = 'super-speedy-performance-analysis';
         const SSPA_FILE = 'super-speedy-performance-analysis-pro/super-speedy-performance-analysis.php';
         const SSPA_PLAIN_FILE = 'super-speedy-performance-analysis/super-speedy-performance-analysis.php';
 
@@ -661,7 +662,7 @@ if (!class_exists('SuperSpeedySettingsCore')) {
                     . esc_html__('Install Performance Analysis FREE', 'super-speedy-settings') . '</button>'
                     . ' <span class="superspeedy-sspa-status" role="status"></span>';
             }
-            return '<a class="button button-primary" href="https://github.com/superspeedyplugins/super-speedy-performance-analysis/releases/latest" target="_blank" rel="noopener">'
+            return '<a class="button button-primary" href="https://wordpress.org/plugins/super-speedy-performance-analysis/" target="_blank" rel="noopener">'
                 . esc_html__('Download Performance Analysis FREE', 'super-speedy-settings') . '</a>';
         }
 
@@ -745,7 +746,8 @@ if (!class_exists('SuperSpeedySettingsCore')) {
         }
 
         /**
-         * Install Performance Analysis from its one allow-listed public package.
+         * Install the free wordpress.org edition of Performance Analysis from its one
+         * allow-listed public package.
          *
          * Delegates to SSP_MCP::exec_install_plugin(), which is the single shared
          * installer used by the agent surface and by Scalability Pro, so there is
@@ -778,10 +780,11 @@ if (!class_exists('SuperSpeedySettingsCore')) {
         }
 
         public function settings_intro() {
-            // A licence key is for the PAID plugins. Free ones update without one, so
-            // this page must not tell every visitor they need a key.
+            // A licence key is for the PAID plugins, Performance Analysis Pro included. The
+            // free wordpress.org edition of Performance Analysis updates from wordpress.org,
+            // so this page must not tell every visitor they need a key.
             ?>
-            <p>Enter your licence key below to enable updates for the paid Super Speedy plugins. The free ones, including Performance Analysis, update without a key.</p>
+            <p>Enter your licence key below to enable updates for the paid Super Speedy plugins, including Performance Analysis Pro. The free edition of Performance Analysis updates from wordpress.org without a key.</p>
             <p>If you hold a licence, please remember to renew it to continue to support our small team so we can keep solving these WordPress performance issues.</p>
             <?php
         }

@@ -52,9 +52,9 @@ class SSP_MCP {
      */
     public static function public_packages() {
         return (array) apply_filters( 'superspeedy_public_packages', array(
-            'super-speedy-performance-analysis' => 'https://github.com/superspeedyplugins/super-speedy-performance-analysis/releases/latest/download/super-speedy-performance-analysis.zip',
-            // Pro is free with no licence gate; the authorising endpoint serves it without a key.
-            'super-speedy-performance-analysis-pro' => 'https://auth.superspeedyplugins.com/wp-json/secure-wpi/v1/download/super-speedy-performance-analysis-pro',
+            // The wordpress.org edition. Pro is a paid plugin (24 November 2026) and is not
+            // listed here: it installs through the licensed update feed like every other paid one.
+            'super-speedy-performance-analysis' => 'https://downloads.wordpress.org/plugin/super-speedy-performance-analysis.latest-stable.zip',
         ) );
     }
 
@@ -381,7 +381,11 @@ class SSP_MCP {
     /**
      * Validate a redirect that a public package download is allowed to follow.
      *
-     * `releases/latest/download/<file>` answers with TWO hops: first to the same
+     * wordpress.org's `<slug>.latest-stable.zip` answers with ONE hop to the versioned
+     * zip on the same host, `<slug>.<version>.zip`: that is accepted only on the
+     * origin's exact host and under the same `/plugin/<slug>.` file prefix.
+     *
+     * GitHub's `releases/latest/download/<file>` answers with TWO hops: first to the same
      * repository's tagged asset url, then to a short-lived SIGNED url that differs
      * on every request and therefore cannot be allow-listed literally. Both are
      * derived from the approved url rather than trusted by host alone:
@@ -406,6 +410,21 @@ class SSP_MCP {
             return new WP_Error(
                 'ssp_package_redirect_invalid',
                 __( 'Refusing a package redirect that is not a credential-free HTTPS origin on port 443.', 'super-speedy-settings' )
+            );
+        }
+
+        $latest = '.latest-stable.zip';
+        if ( substr( (string) $origin, -strlen( $latest ) ) === $latest ) {
+            $prefix = substr( (string) $origin, 0, -strlen( $latest ) ) . '.';
+            $origin_host = strtolower( (string) wp_parse_url( (string) $origin, PHP_URL_HOST ) );
+            $version = substr( $url, strlen( $prefix ), -4 );
+            if ( $host === $origin_host && 0 === strpos( $url, $prefix ) && '.zip' === substr( $url, -4 )
+                && ! isset( $parts['query'] ) && preg_match( '/^[0-9][0-9A-Za-z.\-]*$/', $version ) ) {
+                return true;
+            }
+            return new WP_Error(
+                'ssp_package_redirect_host',
+                sprintf( __( 'Refusing to follow a package redirect to "%s".', 'super-speedy-settings' ), $url )
             );
         }
 
