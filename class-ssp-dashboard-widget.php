@@ -63,7 +63,8 @@ if ( ! class_exists( 'SSP_Dashboard_Widget', false ) ) {
 			add_action( self::CRON_HOOK, array( __CLASS__, 'fetch' ) );
 			if ( is_admin() ) {
 				add_action( 'admin_init', array( __CLASS__, 'maybe_schedule' ) );
-				add_action( 'wp_dashboard_setup', array( __CLASS__, 'register' ) );
+				// Last, so every other plugin's boxes are registered before the first empty column is chosen.
+				add_action( 'wp_dashboard_setup', array( __CLASS__, 'register' ), PHP_INT_MAX );
 				add_action( 'admin_enqueue_scripts', array( __CLASS__, 'enqueue' ) );
 				add_action( 'admin_post_ssp_dashboard_offers', array( __CLASS__, 'handle_offers_toggle' ) );
 			}
@@ -280,7 +281,7 @@ if ( ! class_exists( 'SSP_Dashboard_Widget', false ) ) {
 			if ( ! self::can_see() ) {
 				return;
 			}
-			wp_add_dashboard_widget( self::WIDGET_ID, 'Super Speedy Plugins', array( __CLASS__, 'render' ), null, null, 'normal', 'high' );
+			wp_add_dashboard_widget( self::WIDGET_ID, 'Super Speedy Plugins', array( __CLASS__, 'render' ), null, null, self::default_context(), 'high' );
 		}
 
 		public static function enqueue( $hook ) {
@@ -329,6 +330,59 @@ if ( ! class_exists( 'SSP_Dashboard_Widget', false ) ) {
 			return $live;
 		}
 
+		const CONTEXTS = array( 'normal', 'side', 'column3', 'column4' );
+
+		/**
+		 * Where the box goes when this user has never moved it: the first dashboard column with no
+		 * visible box, by WordPress's own placement (each box's registered context, overridden by
+		 * this user's saved order, minus the boxes hidden in Screen Options). Column 4 when every
+		 * column has a box. Once the user drags it, their saved order wins and this is not used.
+		 */
+		public static function default_context() {
+			global $wp_meta_boxes;
+			$where = array();
+			foreach ( (array) ( $wp_meta_boxes['dashboard'] ?? array() ) as $context => $priorities ) {
+				foreach ( (array) $priorities as $boxes ) {
+					foreach ( (array) $boxes as $id => $box ) {
+						if ( $box ) {
+							$where[ $id ] = $context;
+						}
+					}
+				}
+			}
+			$order = get_user_option( 'meta-box-order_dashboard' );
+			foreach ( is_array( $order ) ? $order : array() as $context => $ids ) {
+				foreach ( array_filter( explode( ',', (string) $ids ) ) as $id ) {
+					if ( isset( $where[ $id ] ) ) {
+						$where[ $id ] = $context;
+					}
+				}
+			}
+			$hidden = function_exists( 'get_hidden_meta_boxes' ) ? get_hidden_meta_boxes( 'dashboard' ) : array();
+			unset( $where[ self::WIDGET_ID ] );
+			$used = array_count_values( array_values( array_diff_key( $where, array_flip( (array) $hidden ) ) ) );
+			foreach ( self::CONTEXTS as $context ) {
+				if ( empty( $used[ $context ] ) ) {
+					return $context;
+				}
+			}
+			return 'column4';
+		}
+
+		/** True once this user has dragged the box: WordPress has saved it in their dashboard order. */
+		public static function user_placed_box() {
+			$order = get_user_option( 'meta-box-order_dashboard' );
+			if ( ! is_array( $order ) ) {
+				return false;
+			}
+			foreach ( $order as $ids ) {
+				if ( in_array( self::WIDGET_ID, explode( ',', (string) $ids ), true ) ) {
+					return true;
+				}
+			}
+			return false;
+		}
+
 		public static function hides_offers( $user_id = 0 ) {
 			return (bool) get_user_meta( $user_id ?: get_current_user_id(), self::USER_META, true );
 		}
@@ -372,7 +426,7 @@ if ( ! class_exists( 'SSP_Dashboard_Widget', false ) ) {
 				}
 			}
 
-			echo '<div class="ssw">';
+			echo '<div class="ssw" data-ssw-placed="' . ( self::user_placed_box() ? '1' : '0' ) . '">';
 			if ( ! $state['fetched_at'] ) {
 				$next = wp_next_scheduled( self::CRON_HOOK );
 				echo '<p class="ssw-empty">' . esc_html__( 'Super Speedy news will appear here after the first check.', 'super-speedy-settings' );
