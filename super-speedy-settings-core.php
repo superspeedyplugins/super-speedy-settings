@@ -23,7 +23,7 @@ if ( class_exists( 'SuperSpeedySettingsCore', false ) || ! empty( $GLOBALS['ssp_
 }
 $GLOBALS['ssp_settings_core_bootstrapped'] = true;
 $GLOBALS['ssp_settings_selected_dir'] = __DIR__;
-$GLOBALS['ssp_settings_selected_version'] = '1.14.10';
+$GLOBALS['ssp_settings_selected_version'] = '1.15.0';
 
 require_once __DIR__ . '/abstract-class-super-speedy-settings.php';
 if ( is_admin() ) {
@@ -74,6 +74,14 @@ if ( superspeedy_mcp_enabled() && file_exists( __DIR__ . '/class-ssp-mcp-setup.p
     require_once __DIR__ . '/class-ssp-mcp-setup.php';
     SSP_MCP_Setup::init();
 }
+// The Super Speedy Plugins dashboard widget (settings 1.15.0): admin screens and the cron
+// request that fetches its feed only, so a front-end request never even loads the file.
+// The wordpress.org editions delete this whole submodule, so they never carry it.
+if ( ( is_admin() || wp_doing_cron() || ( defined( 'WP_CLI' ) && WP_CLI ) )
+    && file_exists( __DIR__ . '/class-ssp-dashboard-widget.php' ) ) {
+    require_once __DIR__ . '/class-ssp-dashboard-widget.php';
+    SSP_Dashboard_Widget::bootstrap();
+}
 use SuperSpeedy\PluginUpdateChecker\v5\PucFactory;
 if (!class_exists('SuperSpeedySettingsCore')) {
     class SuperSpeedySettingsCore extends SuperSpeedySettings {
@@ -82,7 +90,7 @@ if (!class_exists('SuperSpeedySettingsCore')) {
         // &sv= (distinct from a plugin's own build, sent as v=). Lets auth see which
         // sites run stale settings code (e.g. still checking www, or missing a param).
         // Bump this whenever the settings code changes in a way worth tracking.
-        const SETTINGS_VERSION = '1.14.10';
+        const SETTINGS_VERSION = '1.15.0';
         // Package downloads carry the licence key in this header, never in the URL
         // (settings 1.14.3). A URL is written to access logs, proxy logs, the stored
         // update_plugins transient and the upgrader's "Downloading update from ..."
@@ -1188,6 +1196,16 @@ if (!class_exists('SuperSpeedySettingsCore')) {
         }
 
         /** The licence key entered on this site, or '' when none is. */
+        /** Folder slugs of every plugin that registered with SuperSpeedySettings_1_0::init(). */
+        public static function registered_plugin_slugs() {
+            $slugs = array();
+            foreach ( self::getLicenses() as $slug => $license ) {
+                if ( ! empty( $license['file'] ) ) {
+                    $slugs[] = (string) $slug;
+                }
+            }
+            return $slugs;
+        }
         public static function stored_license_key() {
             $options = get_option( 'superspeedy_options' );
             if ( is_array( $options ) && isset( $options['superspeedy_field_licensekey'] ) ) {
