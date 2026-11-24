@@ -72,7 +72,12 @@ if ( ! class_exists( 'SSP_Dashboard_Widget', false ) ) {
 
 		/** Folder slugs of the Super Speedy plugins that registered with the settings core. */
 		public static function registered_slugs() {
-			return class_exists( 'SuperSpeedySettingsCore', false ) ? SuperSpeedySettingsCore::registered_plugin_slugs() : array();
+			// Plugins registered with the settings core, plus the folder of every plugin carrying a
+			// 1.15.2+ copy. The second list is all there is when an old-style copy owns the settings
+			// class and the core never loaded (see super-speedy-settings.php).
+			$core  = class_exists( 'SuperSpeedySettingsCore', false ) ? SuperSpeedySettingsCore::registered_plugin_slugs() : array();
+			$hosts = isset( $GLOBALS['ssp_dashboard_widget_hosts'] ) ? array_map( 'sanitize_key', (array) $GLOBALS['ssp_dashboard_widget_hosts'] ) : array();
+			return array_values( array_unique( array_merge( $core, $hosts ) ) );
 		}
 
 		/** True when at least one registered Super Speedy plugin is a paid edition. */
@@ -289,8 +294,8 @@ if ( ! class_exists( 'SSP_Dashboard_Widget', false ) ) {
 				return;
 			}
 			$dir = plugin_dir_url( __FILE__ );
-			wp_enqueue_style( 'ssp-dashboard-widget', $dir . 'dashboard-widget.css', array(), SuperSpeedySettingsCore::SETTINGS_VERSION );
-			wp_enqueue_script( 'ssp-dashboard-widget', $dir . 'dashboard-widget.js', array(), SuperSpeedySettingsCore::SETTINGS_VERSION, true );
+			wp_enqueue_style( 'ssp-dashboard-widget', $dir . 'dashboard-widget.css', array(), (string) filemtime( __DIR__ . '/dashboard-widget.css' ) );
+			wp_enqueue_script( 'ssp-dashboard-widget', $dir . 'dashboard-widget.js', array(), (string) filemtime( __DIR__ . '/dashboard-widget.js' ), true );
 		}
 
 		/** Folder slugs of every active plugin on this site (and network-active on multisite). */

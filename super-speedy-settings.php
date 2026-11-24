@@ -100,5 +100,41 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
 // serving the site and this copy must stay silent.
 if (defined('SuperSpeedySettings_1_0::SSP_REGISTRY_FACADE')) {
     // Keep this literal in sync with SuperSpeedySettingsCore::SETTINGS_VERSION.
-    $GLOBALS['ssp_settings_candidates']['1.15.1'] = __DIR__;
+    $GLOBALS['ssp_settings_candidates']['1.15.2'] = __DIR__;
+}
+
+// Dashboard widget registry (settings 1.15.2). Deliberately independent of the election above.
+// An old-style copy (before settings 1.5.0, July 2026) that loads first owns the class name, and
+// then no newer core ever loads, so a site with one old Super Speedy plugin would never show the
+// Super Speedy Plugins dashboard box (found on a customer site, 24 November 2026). Every copy from 1.15.2 on
+// registers here whatever owns the class; if the settings core did not load the widget, the
+// newest registered copy's widget file is loaded on its own, in wp-admin, cron and WP-CLI only.
+// Frozen like the rest: $GLOBALS['ssp_dashboard_widget_candidates'] (version => dir),
+// $GLOBALS['ssp_dashboard_widget_hosts'] (the folder of each plugin carrying a copy) and the
+// filename class-ssp-dashboard-widget.php. Keep this literal in sync with SETTINGS_VERSION.
+$GLOBALS['ssp_dashboard_widget_candidates']['1.15.2'] = __DIR__;
+$GLOBALS['ssp_dashboard_widget_hosts'][] = basename(dirname(__DIR__));
+if (!function_exists('ssp_dashboard_widget_load')) {
+    function ssp_dashboard_widget_load() {
+        if (class_exists('SSP_Dashboard_Widget', false)) {
+            return; // the settings core loaded it
+        }
+        if (!(is_admin() || wp_doing_cron() || (defined('WP_CLI') && WP_CLI))) {
+            return;
+        }
+        $candidates = (array) $GLOBALS['ssp_dashboard_widget_candidates'];
+        uksort($candidates, 'version_compare');
+        $plugins = realpath(WP_PLUGIN_DIR);
+        foreach (array_reverse($candidates, true) as $dir) {
+            $file = realpath($dir . '/class-ssp-dashboard-widget.php');
+            $host = realpath(dirname($dir));
+            $allowed = $file && $host && $plugins && (dirname($host) === $plugins || in_array($host, array_map('realpath', (array) glob($plugins . '/*', GLOB_ONLYDIR)), true));
+            if ($allowed) {
+                require_once $file;
+                SSP_Dashboard_Widget::bootstrap();
+                return;
+            }
+        }
+    }
+    add_action('plugins_loaded', 'ssp_dashboard_widget_load', -9998);
 }
