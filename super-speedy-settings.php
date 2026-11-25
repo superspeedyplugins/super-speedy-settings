@@ -21,8 +21,18 @@
  *   - action 'ssp_settings_plugin_registered' fired after each registration
  *   - the core filename 'super-speedy-settings-core.php'
  * Put ALL real behaviour in the core file; never add logic here. The ONLY
- * per-release edit in this file is the version literal at the bottom, which
- * must match SuperSpeedySettingsCore::SETTINGS_VERSION.
+ * per-release edits in this file are the two version literals at the bottom
+ * (the settings candidate and the dashboard widget candidate), which must
+ * match SuperSpeedySettingsCore::SETTINGS_VERSION.
+ *
+ * ONE ACCEPTED EXCEPTION (Dave, 25 November 2026): the dashboard widget
+ * registry and its loader at the end of this file. When an old-style copy
+ * (before 1.5.0) loads first it owns SuperSpeedySettings_1_0, no newer core
+ * ever loads, and nothing in the core can run on that site. The widget is the
+ * one feature that must reach those sites, so it registers and loads from
+ * here, independently of the election. It stays small, touches none of the
+ * frozen pieces above, and must never grow into a second settings core: any
+ * other feature belongs in super-speedy-settings-core.php.
  *
  * Compatibility both ways:
  *   - If an OLD-style copy (pre-1.5.0) loaded first, SuperSpeedySettings_1_0
