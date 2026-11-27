@@ -100,3 +100,7 @@
   #ssp_dashboard_news .ssw-spark,#ssp_dashboard_news .ssw-ghost,#ssp_dashboard_news .ssw-live,#ssp_dashboard_news .ssw-line,#ssp_dashboard_news .ssw-btn::after,#ssp_dashboard_news .ssw-slow,#ssp_dashboard_news .ssw-fast,#ssp_dashboard_news .ssw-pop{animation:none}
   #ssp_dashboard_news .ssw-tile,#ssp_dashboard_news .ssw-btn{transition:none}
 }
+
+/* Link into the Super Speedy screen's recommendations (settings 1.15.3) */
+#ssp_dashboard_news .ssw-forsite{border-color:rgba(128,53,190,.55);background:linear-gradient(135deg,rgba(128,53,190,.28),rgba(83,213,253,.08)),#141b2c}
+#ssp_dashboard_news .ssw-forsite .ssw-card-text{margin-bottom:0}

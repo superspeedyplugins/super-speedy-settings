@@ -29,6 +29,12 @@ if (!class_exists('SuperSpeedySettings')) {
             'super-speedy-chat' => array('name' => 'Super Speedy Chat', 'function' => 'ssc_init_plugin', 'discord' => 'https://discord.gg/zDqg2UX9wp'),
             'super-speedy-coming-soon' => array('name' => 'Super Speedy Coming Soon', 'function' => 'sscs_maybe_replace_add_to_cart', 'discord' => 'https://discord.gg/zDqg2UX9wp'),
             'super-speedy-emails' => array('name' => 'Super Speedy Emails', 'function' => 'sse_init', 'discord' => 'https://discord.gg/zDqg2UX9wp'),
+            // Add-ons and new plugins (settings 1.16.0). Ajax add-ons share the Ajax Prices channel;
+            // Analytics and Follow-up Emails have no channel of their own yet, so the server invite.
+            'ssap-addon-price-discounts' => array('name' => 'Price Discounts', 'discord' => 'https://discord.com/channels/837258064704438282/1476527369329049661'),
+            'ssap-addon-country-based-prices' => array('name' => 'Country Based Prices', 'discord' => 'https://discord.com/channels/837258064704438282/1476527369329049661'),
+            'super-speedy-analytics' => array('name' => 'Super Speedy Analytics', 'discord' => 'https://discord.gg/zDqg2UX9wp'),
+            'sse-addon-follow-up-emails' => array('name' => 'Follow-up Emails', 'discord' => 'https://discord.gg/zDqg2UX9wp'),
         );
 
         protected static function getVersion() {
@@ -120,6 +126,11 @@ if (!class_exists('SuperSpeedySettings')) {
                 'version' => $plugin_info['version'],
                 'file' => $plugin_info['file']
             );
+            // Optional (settings 1.16.0): the plugin's own AI assistant guide, linked from the
+            // MCP setup screen. Older plugin builds do not pass it and get the general guide.
+            if (!empty($plugin_info['ai_guide_url']) && is_string($plugin_info['ai_guide_url'])) {
+                self::$superspeedy_licenses[$plugin_info['plugin_slug']]['ai_guide_url'] = $plugin_info['ai_guide_url'];
+            }
 
         }
 

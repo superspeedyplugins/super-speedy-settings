@@ -270,7 +270,8 @@ if ( ! class_exists( 'SSP_Dashboard_Widget', false ) ) {
 					if ( ! empty( $product['image'] ) && '' === $image ) {
 						$item['image_refused'] = true;
 					}
-					$item['products'][] = array( 'name' => $name, 'image' => $image );
+					$slug = isset( $product['slug'] ) && is_scalar( $product['slug'] ) ? sanitize_key( (string) $product['slug'] ) : '';
+					$item['products'][] = array( 'name' => $name, 'image' => $image, 'slug' => $slug );
 				}
 			}
 			return $item;
@@ -309,6 +310,79 @@ if ( ! class_exists( 'SSP_Dashboard_Widget', false ) ) {
 				$slugs[] = sanitize_key( false === strpos( $file, '/' ) ? basename( $file, '.php' ) : dirname( $file ) );
 			}
 			return array_unique( $slugs );
+		}
+
+		/** Plugin folder prefixes that a product's display name leaves out. */
+		const SLUG_PREFIXES = array( 'ssap-addon-', 'ssi-addon-', 'spro-addon-', 'sse-addon-', 'super-speedy-' );
+
+		/** Folder names of every plugin installed on this site, active or not. */
+		public static function installed_folders() {
+			static $folders = null;
+			if ( null === $folders ) {
+				$folders = array_map( 'basename', (array) glob( WP_PLUGIN_DIR . '/*', GLOB_ONLYDIR ) );
+			}
+			return $folders;
+		}
+
+		private static function name_key( $name ) {
+			$name = preg_replace( '/^super\s*speedy\s*/', '', strtolower( (string) $name ) );
+			return preg_replace( '/[^a-z0-9]+/', '', (string) $name );
+		}
+
+		/**
+		 * Is a launch tile's product already on this site? The feed's optional `slug` decides when
+		 * present. Otherwise its name is compared with each installed folder minus our prefixes
+		 * ("Price Discounts" = ssap-addon-price-discounts) and with the catalogue's names.
+		 */
+		public static function product_installed( array $product, array $folders ) {
+			if ( ! empty( $product['slug'] ) ) {
+				return in_array( $product['slug'], $folders, true );
+			}
+			$key = self::name_key( $product['name'] ?? '' );
+			if ( '' === $key ) {
+				return false;
+			}
+			foreach ( $folders as $folder ) {
+				foreach ( self::SLUG_PREFIXES as $prefix ) {
+					if ( 0 === strpos( $folder, $prefix ) ) {
+						$folder = substr( $folder, strlen( $prefix ) );
+						break;
+					}
+				}
+				if ( self::name_key( $folder ) === $key ) {
+					return true;
+				}
+			}
+			if ( class_exists( 'SSP_Onboarding', false ) ) {
+				foreach ( SSP_Onboarding::state()['plugins'] as $plugin ) {
+					if ( self::name_key( $plugin['name'] ) === $key && in_array( $plugin['slug'], $folders, true ) ) {
+						return true;
+					}
+				}
+			}
+			return false;
+		}
+
+		/**
+		 * A plugin installed here is never shown as coming: its tile is dropped from a launch, and a
+		 * launch whose every product is installed is dropped altogether.
+		 */
+		public static function drop_installed_products( array $items, $folders = null ) {
+			$folders = null === $folders ? self::installed_folders() : $folders;
+			$out     = array();
+			foreach ( $items as $item ) {
+				if ( ! empty( $item['products'] ) ) {
+					$left = array_values( array_filter( $item['products'], static function ( $product ) use ( $folders ) {
+						return ! self::product_installed( $product, $folders );
+					} ) );
+					if ( ! $left && 'launch' === $item['type'] ) {
+						continue;
+					}
+					$item['products'] = $left;
+				}
+				$out[] = $item;
+			}
+			return $out;
 		}
 
 		/** The items to show now, in display order, for this site and this user. */
@@ -414,7 +488,7 @@ if ( ! class_exists( 'SSP_Dashboard_Widget', false ) ) {
 		public static function render() {
 			$state = self::state();
 			$hide  = self::hides_offers();
-			$items = self::visible_items( $state['items'], time(), self::active_slugs(), $hide );
+			$items = self::visible_items( self::drop_installed_products( $state['items'] ), time(), self::active_slugs(), $hide );
 
 			$hero = $upgrades = $figures = $launches = $news = array();
 			foreach ( $items as $item ) {
@@ -457,6 +531,10 @@ if ( ! class_exists( 'SSP_Dashboard_Widget', false ) ) {
 			}
 			if ( $news ) {
 				self::render_news( $news );
+			}
+			// Settings 1.15.3: into the Super Speedy screen's local recommendations, when that code is here.
+			if ( class_exists( 'SSP_Onboarding', false ) ) {
+				echo '<a class="ssw-card ssw-forsite" href="' . esc_url( SSP_Onboarding::tab_url( 'site' ) ) . '"><span class="ssw-card-title">' . esc_html__( 'See what would speed up this site', 'super-speedy-settings' ) . ' &rarr;</span><span class="ssw-card-text">' . esc_html__( 'Worked out here from what this site runs. Nothing is sent.', 'super-speedy-settings' ) . '</span></a>';
 			}
 			self::render_footer( $state, $hide );
 			echo '</div>';

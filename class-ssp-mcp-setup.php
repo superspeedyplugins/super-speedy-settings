@@ -10,6 +10,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 if ( ! class_exists( 'SSP_MCP_Setup' ) ) {
     class SSP_MCP_Setup {
         const PAGE_SLUG        = 'superspeedy-mcp-setup';
+        const GENERAL_GUIDE    = 'https://www.superspeedyplugins.com/kb/super-speedy-basics/super-speedy-mcp/';
         const APP_ID           = '9bf74e6d-44ea-4f89-946d-af480c56733e';
         const AGENT_ROLE       = 'super_speedy_agent';
         const AGENT_USER_OPTION = 'ssp_mcp_agent_user_id';
@@ -462,7 +463,25 @@ if ( ! class_exists( 'SSP_MCP_Setup' ) ) {
                     <div id="ssp-mcp-error" class="notice notice-error inline" hidden><p></p></div>
                 </div>
 
-                <p><a href="https://www.superspeedyplugins.com/kb/super-speedy-filters/getting-started/setting-up-a-store-with-an-ai-assistant/" target="_blank" rel="noopener"><?php esc_html_e( 'Read the complete AI assistant setup guide', 'super-speedy-settings' ); ?></a> · <a href="https://github.com/WordPress/mcp-adapter" target="_blank" rel="noopener"><?php esc_html_e( 'Official WordPress MCP Adapter', 'super-speedy-settings' ); ?></a></p>
+                <?php
+                // Settings 1.16.0: the guide of the plugin the screen was opened from (&plugin=<slug>,
+                // from its `ai_guide_url` init arg), else the general guide; then every plugin's own.
+                $guides  = class_exists( 'SuperSpeedySettingsCore', false ) ? SuperSpeedySettingsCore::ai_guide_urls() : array();
+                $viewing = isset( $_GET['plugin'] ) ? sanitize_key( wp_unslash( $_GET['plugin'] ) ) : '';
+                $primary = ( '' !== $viewing && isset( $guides[ $viewing ] ) ) ? $guides[ $viewing ]['url'] : self::GENERAL_GUIDE;
+                ?>
+                <p><a href="<?php echo esc_url( $primary ); ?>" target="_blank" rel="noopener"><?php esc_html_e( 'Read the complete AI assistant setup guide', 'super-speedy-settings' ); ?></a> · <a href="https://github.com/WordPress/mcp-adapter" target="_blank" rel="noopener"><?php esc_html_e( 'Official WordPress MCP Adapter', 'super-speedy-settings' ); ?></a></p>
+                <?php
+                $others = array_diff_key( $guides, array( $viewing => true ) );
+                if ( $others ) {
+                    echo '<p>' . esc_html__( 'Guides for your plugins:', 'super-speedy-settings' ) . ' ';
+                    $links = array();
+                    foreach ( $others as $guide ) {
+                        $links[] = '<a href="' . esc_url( $guide['url'] ) . '" target="_blank" rel="noopener">' . esc_html( $guide['name'] ) . '</a>';
+                    }
+                    echo implode( ' · ', $links ) . '</p>'; // phpcs:ignore WordPress.Security.EscapeOutput -- built from escaped parts
+                }
+                ?>
             </div>
             <?php
         }
