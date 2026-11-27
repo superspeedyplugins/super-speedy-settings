@@ -23,7 +23,7 @@ if ( class_exists( 'SuperSpeedySettingsCore', false ) || ! empty( $GLOBALS['ssp_
 }
 $GLOBALS['ssp_settings_core_bootstrapped'] = true;
 $GLOBALS['ssp_settings_selected_dir'] = __DIR__;
-$GLOBALS['ssp_settings_selected_version'] = '1.15.3';
+$GLOBALS['ssp_settings_selected_version'] = '1.16.0';
 
 require_once __DIR__ . '/abstract-class-super-speedy-settings.php';
 if ( is_admin() ) {
@@ -97,7 +97,7 @@ if (!class_exists('SuperSpeedySettingsCore')) {
         // &sv= (distinct from a plugin's own build, sent as v=). Lets auth see which
         // sites run stale settings code (e.g. still checking www, or missing a param).
         // Bump this whenever the settings code changes in a way worth tracking.
-        const SETTINGS_VERSION = '1.15.3';
+        const SETTINGS_VERSION = '1.16.0';
         // Package downloads carry the licence key in this header, never in the URL
         // (settings 1.14.3). A URL is written to access logs, proxy logs, the stored
         // update_plugins transient and the upgrader's "Downloading update from ..."
@@ -1251,7 +1251,21 @@ if (!class_exists('SuperSpeedySettingsCore')) {
                 && 1 === preg_match( '#^/(?:wp-json/)?secure-wpi/v1/download/[A-Za-z0-9-]+/?$#', $parts['path'] );
         }
 
-        /** The licence key entered on this site, or '' when none is. */
+        /**
+         * Each registered plugin's own AI assistant guide (the optional `ai_guide_url` init arg),
+         * as slug => array( name, url ). Only https links on www.superspeedyplugins.com are kept.
+         */
+        public static function ai_guide_urls() {
+            $guides = array();
+            foreach ( self::getLicenses() as $slug => $license ) {
+                $url   = isset( $license['ai_guide_url'] ) ? (string) $license['ai_guide_url'] : '';
+                $parts = '' === $url ? false : wp_parse_url( $url );
+                if ( is_array( $parts ) && 'https' === ( $parts['scheme'] ?? '' ) && 'www.superspeedyplugins.com' === strtolower( $parts['host'] ?? '' ) && empty( $parts['user'] ) && empty( $parts['port'] ) ) {
+                    $guides[ $slug ] = array( 'name' => ! empty( $license['name'] ) ? $license['name'] : $slug, 'url' => $url );
+                }
+            }
+            return $guides;
+        }
         /** Folder slugs of every plugin that registered with SuperSpeedySettings_1_0::init(). */
         public static function registered_plugin_slugs() {
             $slugs = array();

@@ -676,7 +676,7 @@ if ( ! class_exists( 'SSP_Onboarding', false ) ) {
 				return array();
 			}
 			$state = SSP_Dashboard_Widget::state();
-			$items = SSP_Dashboard_Widget::visible_items( (array) $state['items'], time(), self::active_slugs(), false );
+			$items = SSP_Dashboard_Widget::visible_items( SSP_Dashboard_Widget::drop_installed_products( (array) $state['items'] ), time(), self::active_slugs(), false );
 			return array_values( array_filter( $items, static function ( $item ) {
 				return in_array( $item['type'], array( 'offer', 'launch' ), true );
 			} ) );
