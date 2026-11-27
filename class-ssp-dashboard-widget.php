@@ -458,6 +458,10 @@ if ( ! class_exists( 'SSP_Dashboard_Widget', false ) ) {
 			if ( $news ) {
 				self::render_news( $news );
 			}
+			// Settings 1.15.3: into the Super Speedy screen's local recommendations, when that code is here.
+			if ( class_exists( 'SSP_Onboarding', false ) ) {
+				echo '<a class="ssw-card ssw-forsite" href="' . esc_url( SSP_Onboarding::tab_url( 'site' ) ) . '"><span class="ssw-card-title">' . esc_html__( 'See what would speed up this site', 'super-speedy-settings' ) . ' &rarr;</span><span class="ssw-card-text">' . esc_html__( 'Worked out here from what this site runs. Nothing is sent.', 'super-speedy-settings' ) . '</span></a>';
+			}
 			self::render_footer( $state, $hide );
 			echo '</div>';
 		}

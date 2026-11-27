@@ -23,7 +23,7 @@ if ( class_exists( 'SuperSpeedySettingsCore', false ) || ! empty( $GLOBALS['ssp_
 }
 $GLOBALS['ssp_settings_core_bootstrapped'] = true;
 $GLOBALS['ssp_settings_selected_dir'] = __DIR__;
-$GLOBALS['ssp_settings_selected_version'] = '1.15.2';
+$GLOBALS['ssp_settings_selected_version'] = '1.15.3';
 
 require_once __DIR__ . '/abstract-class-super-speedy-settings.php';
 if ( is_admin() ) {
@@ -82,6 +82,13 @@ if ( ( is_admin() || wp_doing_cron() || ( defined( 'WP_CLI' ) && WP_CLI ) )
     require_once __DIR__ . '/class-ssp-dashboard-widget.php';
     SSP_Dashboard_Widget::bootstrap();
 }
+// The Super Speedy screen's onboarding and sales pages, the deals bubble, the trial key pick-up
+// and the catalogue fetch (settings 1.15.3). Admin, cron and WP-CLI only, like the widget.
+if ( ( is_admin() || wp_doing_cron() || ( defined( 'WP_CLI' ) && WP_CLI ) )
+    && file_exists( __DIR__ . '/class-ssp-onboarding.php' ) ) {
+    require_once __DIR__ . '/class-ssp-onboarding.php';
+    SSP_Onboarding::bootstrap();
+}
 use SuperSpeedy\PluginUpdateChecker\v5\PucFactory;
 if (!class_exists('SuperSpeedySettingsCore')) {
     class SuperSpeedySettingsCore extends SuperSpeedySettings {
@@ -90,7 +97,7 @@ if (!class_exists('SuperSpeedySettingsCore')) {
         // &sv= (distinct from a plugin's own build, sent as v=). Lets auth see which
         // sites run stale settings code (e.g. still checking www, or missing a param).
         // Bump this whenever the settings code changes in a way worth tracking.
-        const SETTINGS_VERSION = '1.15.2';
+        const SETTINGS_VERSION = '1.15.3';
         // Package downloads carry the licence key in this header, never in the URL
         // (settings 1.14.3). A URL is written to access logs, proxy logs, the stored
         // update_plugins transient and the upgrader's "Downloading update from ..."
@@ -157,10 +164,12 @@ if (!class_exists('SuperSpeedySettingsCore')) {
             }
             $page = sanitize_key( wp_unslash( $_GET['page'] ) );
             if ( self::$menu_slug === $page ) {
-                return true;
+                // Only the licence page shows the counts. The onboarding and sales tabs
+                // (settings 1.15.3) make no request at all.
+                return empty( $_GET['tab'] );
             }
             foreach ( (array) ( isset( $submenu[ self::$menu_slug ] ) ? $submenu[ self::$menu_slug ] : array() ) as $item ) {
-                if ( isset( $item[2] ) && $item[2] === $page ) {
+                if ( isset( $item[2] ) && $item[2] === $page && 'superspeedy-deals' !== $page ) {
                     return true;
                 }
             }
@@ -249,15 +258,32 @@ if (!class_exists('SuperSpeedySettingsCore')) {
         
             // show error/update messages
             settings_errors( 'superspeedy_messages' );
+            // Settings 1.15.3: the screen is paginated. '' is Your plugins (this licence page);
+            // the other tabs are the onboarding and sales pages in class-ssp-onboarding.php.
+            $onboarding = class_exists( 'SSP_Onboarding', false );
+            $tab        = $onboarding ? SSP_Onboarding::current_tab() : '';
             ?>
-            <div class="wrap">
+            <div class="wrap ssp-ob-wrap">
                 <?php
                 // The header panel is white, so the BLACK text logo belongs
                 // here. The white variant ships alongside it for any plugin
                 // that needs a logo on a dark background.
                 ?>
                 <div class="super-speedy-plugins-admin-header"><a href="https://www.superspeedyplugins.com/" target="_blank"><img src="<?php echo esc_url( plugins_url( 'super-speedy-plugins-black-text.png', __FILE__ ) ); ?>" width="151" height="32" alt="Super Speedy Plugins"></a></div>
-                
+                <hr class="wp-header-end">
+                <?php
+                if ( $onboarding ) {
+                    SSP_Onboarding::render_nav( $tab );
+                    if ( '' !== $tab ) {
+                        SSP_Onboarding::render_tab( $tab );
+                        echo '</div>';
+                        return;
+                    }
+                    SSP_Onboarding::render_key_notice();
+                    SSP_Onboarding::render_pack_banner();
+                }
+                ?>
+
                 <?php $this->display_performance_analysis_panel(); ?>
 
                 <!-- Service panels flexbox -->
@@ -333,6 +359,10 @@ if (!class_exists('SuperSpeedySettingsCore')) {
             add_action('wp_ajax_superspeedy_install_performance_analysis', array($this, 'handle_install_performance_analysis'));
             add_action('updated_option', array($this, 'keep_shared_options_out_of_autoload'), 10, 1);
             $this->ensure_options_not_autoloaded();
+            if ( class_exists( 'SSP_Onboarding', false ) ) {
+                // The Deals submenu renders this same screen on its Deals tab.
+                SSP_Onboarding::set_screen_renderer( array( $this, 'display_settings_page' ) );
+            }
         }
         /**
          * One-off cleanup (settings 1.14.6). Up to 1.14.5, remote_get() cached the
@@ -889,11 +919,16 @@ if (!class_exists('SuperSpeedySettingsCore')) {
                     echo '</td>';
                     echo '<td><span class="plugin-name-bold">' . esc_html($ssp_license['name'] ?? '') . '</span><br><a href="' . esc_url('https://www.superspeedyplugins.com/product/' . $slug . '/') . '" target="_blank" class="plugin-page-link">View ' . esc_html($ssp_license['name'] ?? '') . ' plugin page</a></td>';
                     echo '<td>' . esc_html( $is_active ? __( 'Installed / Activated', 'super-speedy-settings' ) : __( 'Installed / Deactivated', 'super-speedy-settings' ) ) . '</td>';
-                    echo '<td>' . esc_html(
-                        ! empty( $ssp_license['free'] )
-                            ? __( 'Free - no key needed', 'super-speedy-settings' )
-                            : $this->licence_status_label( $license )
-                    ) . '</td>';
+                    if ( class_exists( 'SSP_Onboarding', false ) ) {
+                        // Settings 1.15.3: a chip, including "Free trial: N days left".
+                        echo '<td class="superspeedy-licence-cell">' . SSP_Onboarding::licence_chip( $slug, $license, ! empty( $ssp_license['free'] ), $this->licence_status_label( $license ) ) . '</td>'; // phpcs:ignore WordPress.Security.EscapeOutput -- escaped in licence_chip()
+                    } else {
+                        echo '<td>' . esc_html(
+                            ! empty( $ssp_license['free'] )
+                                ? __( 'Free - no key needed', 'super-speedy-settings' )
+                                : $this->licence_status_label( $license )
+                        ) . '</td>';
+                    }
 
                     if (isset($ssp_license['version'])) {
                         $changes = $this->get_changes_since_version($slug, $ssp_license['version']);
@@ -1072,8 +1107,14 @@ if (!class_exists('SuperSpeedySettingsCore')) {
         //        echo "<pre>" . print_r($api_resp, true) . "</pre>";
     
         //        $api_resp = array('activated' => true, 'error' => 'No message');
+                // Settings 1.15.3: the auth server's additive `licence` object (type and expiry),
+                // kept with the result so the screen can show "Free trial: N days left".
+                $licence = self::licence_from_response($api_resp);
                 if (isset($api_resp->activated) && (bool) $api_resp->activated == true) {
                     $data = array('error' => 'valid', 'message' => 'Plugin installed with valid key');
+                    if ($licence) {
+                        $data['licence'] = $licence;
+                    }
                     set_transient('superspeedy_l_' . $slug, $data, $this->check_ttl(2 * HOUR_IN_SECONDS));
                     return $data;
                 }
@@ -1084,6 +1125,9 @@ if (!class_exists('SuperSpeedySettingsCore')) {
                 }
                 if (isset($api_resp) && $api_resp->error == 'expired') {
                     $data = array('error' => 'expired', 'message' => 'License expired - please purchase a license extension to enable updates.');
+                    if ($licence) {
+                        $data['licence'] = $licence;
+                    }
                     set_transient('superspeedy_l_' . $slug, $data, $this->check_ttl(2 * HOUR_IN_SECONDS));
                     return $data;
                 }
@@ -1101,6 +1145,18 @@ if (!class_exists('SuperSpeedySettingsCore')) {
             set_transient('superspeedy_l_' . $slug, $data, $this->check_ttl(HOUR_IN_SECONDS));
     
             return array('error' => $api_resp->error, 'message' => $api_resp->error);
+        }
+        /** The check response's `licence` object as array( type, expires ), or null. */
+        public static function licence_from_response($api_resp) {
+            if (!is_object($api_resp) || !isset($api_resp->licence) || !is_object($api_resp->licence)) {
+                return null;
+            }
+            $type = isset($api_resp->licence->type) && is_string($api_resp->licence->type) ? $api_resp->licence->type : '';
+            if (!in_array($type, array('trial', 'yearly', 'lifetime', 'monthly'), true)) {
+                return null;
+            }
+            $expires = isset($api_resp->licence->expires) && is_string($api_resp->licence->expires) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $api_resp->licence->expires) ? $api_resp->licence->expires : null;
+            return array('type' => $type, 'expires' => $expires);
         }
         public function add_license_to_remote_update_request($update) {
             if (!isset($update->download_url)) return $update;
@@ -1448,7 +1504,7 @@ if (!class_exists('SuperSpeedySettingsCore')) {
         public function enqueue_admin_script( $hook ) {
             wp_enqueue_script('super_speedy_updates', plugin_dir_url(__FILE__) . 'super-speedy-updates.js', array('jquery'), filemtime(__DIR__ . '/super-speedy-updates.js'), true);
             // add super-speedy-settings/admin.css to the admin page but ONLY on our admin page
-            if ($hook == 'toplevel_page_superspeedy' || $hook == 'super-speedy_page_superspeedy-mcp-setup') {
+            if ($hook == 'toplevel_page_superspeedy' || $hook == 'super-speedy_page_superspeedy-mcp-setup' || $hook == 'super-speedy_page_superspeedy-deals') {
                 // Atlas icon packs for the service panels - bundled locally (no external requests).
                 foreach (array('basic-ui', 'school', 'arrow') as $ssp_pack) {
                     wp_enqueue_style('ssp-atlas-' . $ssp_pack, plugin_dir_url(__FILE__) . 'packs/' . $ssp_pack . '/style.css', array(), '1.0.0');
