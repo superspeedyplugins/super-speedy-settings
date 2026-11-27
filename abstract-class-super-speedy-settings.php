@@ -30,11 +30,11 @@ if (!class_exists('SuperSpeedySettings')) {
             'super-speedy-coming-soon' => array('name' => 'Super Speedy Coming Soon', 'function' => 'sscs_maybe_replace_add_to_cart', 'discord' => 'https://discord.gg/zDqg2UX9wp'),
             'super-speedy-emails' => array('name' => 'Super Speedy Emails', 'function' => 'sse_init', 'discord' => 'https://discord.gg/zDqg2UX9wp'),
             // Add-ons and new plugins (settings 1.16.0). Ajax add-ons share the Ajax Prices channel;
-            // Analytics and Follow-up Emails have no channel of their own yet, so the server invite.
+            // Analytics has no channel of its own yet, so the server invite. Follow-up Emails is not
+            // listed: it is part of Super Speedy Emails since 1.16.2, not a separate product.
             'ssap-addon-price-discounts' => array('name' => 'Price Discounts', 'discord' => 'https://discord.com/channels/837258064704438282/1476527369329049661'),
             'ssap-addon-country-based-prices' => array('name' => 'Country Based Prices', 'discord' => 'https://discord.com/channels/837258064704438282/1476527369329049661'),
             'super-speedy-analytics' => array('name' => 'Super Speedy Analytics', 'discord' => 'https://discord.gg/zDqg2UX9wp'),
-            'sse-addon-follow-up-emails' => array('name' => 'Follow-up Emails', 'discord' => 'https://discord.gg/zDqg2UX9wp'),
         );
 
         protected static function getVersion() {
