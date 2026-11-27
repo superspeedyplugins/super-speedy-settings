@@ -23,7 +23,7 @@ if ( class_exists( 'SuperSpeedySettingsCore', false ) || ! empty( $GLOBALS['ssp_
 }
 $GLOBALS['ssp_settings_core_bootstrapped'] = true;
 $GLOBALS['ssp_settings_selected_dir'] = __DIR__;
-$GLOBALS['ssp_settings_selected_version'] = '1.16.0';
+$GLOBALS['ssp_settings_selected_version'] = '1.16.1';
 
 require_once __DIR__ . '/abstract-class-super-speedy-settings.php';
 if ( is_admin() ) {
@@ -97,7 +97,7 @@ if (!class_exists('SuperSpeedySettingsCore')) {
         // &sv= (distinct from a plugin's own build, sent as v=). Lets auth see which
         // sites run stale settings code (e.g. still checking www, or missing a param).
         // Bump this whenever the settings code changes in a way worth tracking.
-        const SETTINGS_VERSION = '1.16.0';
+        const SETTINGS_VERSION = '1.16.1';
         // Package downloads carry the licence key in this header, never in the URL
         // (settings 1.14.3). A URL is written to access logs, proxy logs, the stored
         // update_plugins transient and the upgrader's "Downloading update from ..."
@@ -124,6 +124,22 @@ if (!class_exists('SuperSpeedySettingsCore')) {
             );
         }
         /** The bubble markup wp-admin already styles for plugin update counts. */
+        /**
+         * The Knowledge Base path for a plugin's "Knowledge Base" link (settings 1.16.1). Most
+         * plugins have a KB category named after their slug; these do not (yet), so they link to
+         * the KB that documents them, or the KB home. Every path here returned 200 on 27 November 2026.
+         */
+        const KB_PATHS = array(
+            'ssap-addon-country-based-prices' => 'super-speedy-ajax-prices/',
+            'ssi-addon-term-descriptions'     => 'super-speedy-imports/',
+            'super-speedy-archives'           => 'scalability-pro/',
+            'super-speedy-comments'           => '',
+        );
+
+        public static function kb_path( $slug ) {
+            return array_key_exists( $slug, self::KB_PATHS ) ? self::KB_PATHS[ $slug ] : $slug . '/';
+        }
+
         protected function update_count_bubble( $count ) {
             $count = (int) $count;
             return ' <span class="update-plugins count-' . $count . '"><span class="plugin-count">' . $count . '</span></span>';
@@ -945,7 +961,7 @@ if (!class_exists('SuperSpeedySettingsCore')) {
                         $changes = $this->get_changes_since_days($slug, 90);
                         echo '<td>' . esc_html($changes["count"]) . ' changes in the last 90 days<br /><a href="' . esc_url('https://www.superspeedyplugins.com/support/changelogs/' . $slug . '/?utm_source=' . urlencode($utm_source) . '&utm_content=plugin') . '" target="_blank">View Change log</a></td>';
                     }
-                    echo '<td><a href="' . esc_url('https://www.superspeedyplugins.com/kb/' . $slug . '/?utm_source=' . urlencode($utm_source) . '&utm_content=plugin') . '" target="_blank">Knowledge Base</a></td>';
+                    echo '<td><a href="' . esc_url('https://www.superspeedyplugins.com/kb/' . self::kb_path($slug) . '?utm_source=' . urlencode($utm_source) . '&utm_content=plugin') . '" target="_blank">Knowledge Base</a></td>';
                     echo '<td>' . (!empty($ssp_license['discord']) ? '<a href="' . esc_url($ssp_license['discord']) . '" target="_blank">Discord Channel</a>' : 'N/A') . '</td>';
                     echo '</tr>';
                 }
@@ -968,7 +984,7 @@ if (!class_exists('SuperSpeedySettingsCore')) {
                     echo '</td>';
                     echo '<td><span class="plugin-name-bold">' . esc_html($ssp_license['name'] ?? '') . '</span></td>';
                     echo '<td><a href="' . esc_url($product) . '" target="_blank">' . esc_html__( 'View plugin page', 'super-speedy-settings' ) . '</a></td>';
-                    echo '<td><a href="' . esc_url('https://www.superspeedyplugins.com/kb/' . $slug . '/?utm_source=' . urlencode($utm_source) . '&utm_content=plugin') . '" target="_blank">' . esc_html__( 'Knowledge Base', 'super-speedy-settings' ) . '</a></td>';
+                    echo '<td><a href="' . esc_url('https://www.superspeedyplugins.com/kb/' . self::kb_path($slug) . '?utm_source=' . urlencode($utm_source) . '&utm_content=plugin') . '" target="_blank">' . esc_html__( 'Knowledge Base', 'super-speedy-settings' ) . '</a></td>';
                     echo '</tr>';
                 }
                 echo '</tbody></table>';
