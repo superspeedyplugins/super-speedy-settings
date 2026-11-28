@@ -131,6 +131,7 @@ class SSP_MCP {
             'super-speedy-chat'         => array( 'name' => 'Super Speedy Chat',         'file' => 'super-speedy-chat/super-speedy-chat.php' ),
             'super-speedy-coming-soon'  => array( 'name' => 'Super Speedy Coming Soon Products', 'file' => 'super-speedy-coming-soon/super-speedy-coming-soon.php' ),
             'super-speedy-comments'     => array( 'name' => 'Super Speedy Comments',     'file' => 'super-speedy-comments/super-speedy-comments.php' ),
+            'super-speedy-coupons'      => array( 'name' => 'Super Speedy Coupons',      'file' => 'super-speedy-coupons/super-speedy-coupons.php' ),
             'ssap-addon-country-based-prices' => array(
                 'name'     => 'Super Speedy AJAX Prices: Country Based Prices',
                 'file'     => 'ssap-addon-country-based-prices/ssap-addon-country-based-prices.php',

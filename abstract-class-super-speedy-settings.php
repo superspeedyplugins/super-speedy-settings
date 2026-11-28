@@ -35,6 +35,8 @@ if (!class_exists('SuperSpeedySettings')) {
             'ssap-addon-price-discounts' => array('name' => 'Price Discounts', 'discord' => 'https://discord.com/channels/837258064704438282/1476527369329049661'),
             'ssap-addon-country-based-prices' => array('name' => 'Country Based Prices', 'discord' => 'https://discord.com/channels/837258064704438282/1476527369329049661'),
             'super-speedy-analytics' => array('name' => 'Super Speedy Analytics', 'discord' => 'https://discord.gg/zDqg2UX9wp'),
+            // Settings 1.16.3: Coupons becomes a customer product (not on sale yet); no channel of its own, so the server invite.
+            'super-speedy-coupons' => array('name' => 'Super Speedy Coupons', 'discord' => 'https://discord.gg/zDqg2UX9wp'),
         );
 
         protected static function getVersion() {
