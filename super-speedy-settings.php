@@ -110,7 +110,7 @@ if (!class_exists('SuperSpeedySettings_1_0')) {
 // serving the site and this copy must stay silent.
 if (defined('SuperSpeedySettings_1_0::SSP_REGISTRY_FACADE')) {
     // Keep this literal in sync with SuperSpeedySettingsCore::SETTINGS_VERSION.
-    $GLOBALS['ssp_settings_candidates']['1.16.3'] = __DIR__;
+    $GLOBALS['ssp_settings_candidates']['1.16.4'] = __DIR__;
 }
 
 // Dashboard widget registry (settings 1.15.2). Deliberately independent of the election above.
@@ -122,7 +122,7 @@ if (defined('SuperSpeedySettings_1_0::SSP_REGISTRY_FACADE')) {
 // Frozen like the rest: $GLOBALS['ssp_dashboard_widget_candidates'] (version => dir),
 // $GLOBALS['ssp_dashboard_widget_hosts'] (the folder of each plugin carrying a copy) and the
 // filename class-ssp-dashboard-widget.php. Keep this literal in sync with SETTINGS_VERSION.
-$GLOBALS['ssp_dashboard_widget_candidates']['1.16.3'] = __DIR__;
+$GLOBALS['ssp_dashboard_widget_candidates']['1.16.4'] = __DIR__;
 $GLOBALS['ssp_dashboard_widget_hosts'][] = basename(dirname(__DIR__));
 if (!function_exists('ssp_dashboard_widget_load')) {
     function ssp_dashboard_widget_load() {
